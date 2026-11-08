@@ -1,0 +1,22 @@
+spring:
+  config:
+    activate:
+      on-profile: prod
+
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+accionesud:
+  security:
+    usuario: ${ACCIONESUD_SECURITY_USUARIO:}
+    clave: ${ACCIONESUD_SECURITY_CLAVE:}
+    roles: ${ACCIONESUD_SECURITY_ROLES:}
