@@ -1,0 +1,12 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: acciones-ud-backend
+
+# Parametros de negocio de la plataforma (SCRUM-25)
+accionesud:
+  # Saldo inicial simulado que se asigna a un usuario nuevo (disponible).
+  # Parametrizable por entorno; tambien via variable ACCIONESUD_SALDOINICIALSIMULADO.
+  saldo-inicial-simulado: 100000.00
