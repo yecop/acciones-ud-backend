@@ -38,6 +38,7 @@ springdoc:
     operations-sorter: alpha
 
 accionesud:
+  saldo-inicial-simulado: ${ACCIONESUD_SALDO_INICIAL_SIMULADO:100000.00}
   security:
     usuario: ${ACCIONESUD_SECURITY_USUARIO:}
     clave: ${ACCIONESUD_SECURITY_CLAVE:}
