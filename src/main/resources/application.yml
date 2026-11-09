@@ -44,6 +44,11 @@ accionesud:
     clave: ${ACCIONESUD_SECURITY_CLAVE:}
     roles: ${ACCIONESUD_SECURITY_ROLES:INVERSIONISTA}
   mercados:
+    # Caché de respuestas de proveedores para respetar los límites de los planes
+    # gratuitos. El estado por horario no se cachea (es cálculo local e instantáneo).
+    cache:
+      enabled: ${MERCADOS_CACHE_ENABLED:true}
+      ttl-segundos: ${MERCADOS_CACHE_TTL_SEGUNDOS:60}
     # Credenciales de proveedores de datos de mercado.
     # Los valores reales llegan por variables de entorno (ver .env.example);
     # aquí solo se referencian para no exponer secretos en el repositorio.

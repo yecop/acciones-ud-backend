@@ -29,12 +29,23 @@ public class MercadosProperties {
     /** Credenciales y endpoints de los proveedores de datos de mercado. */
     private Proveedores proveedores = new Proveedores();
 
+    /** Configuración de la caché de respuestas de proveedores. */
+    private Cache cache = new Cache();
+
     public Proveedores getProveedores() {
         return proveedores;
     }
 
     public void setProveedores(Proveedores proveedores) {
         this.proveedores = proveedores;
+    }
+
+    public Cache getCache() {
+        return cache;
+    }
+
+    public void setCache(Cache cache) {
+        this.cache = cache;
     }
 
     public static class Feriado {
@@ -207,6 +218,33 @@ public class MercadosProperties {
 
         public boolean estaConfigurado() {
             return apiKey != null && !apiKey.isBlank();
+        }
+    }
+
+    /**
+     * Caché de respuestas de los proveedores para no exceder los límites de los
+     * planes gratuitos (rate limits) ni golpear las APIs en cada request del widget.
+     */
+    public static class Cache {
+        /** Activa o desactiva la caché. */
+        private boolean enabled = true;
+        /** Tiempo de vida de cada entrada, en segundos. */
+        private long ttlSegundos = 60;
+
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
+        }
+
+        public long getTtlSegundos() {
+            return ttlSegundos;
+        }
+
+        public void setTtlSegundos(long ttlSegundos) {
+            this.ttlSegundos = ttlSegundos;
         }
     }
 }
