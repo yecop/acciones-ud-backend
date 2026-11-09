@@ -1,0 +1,19 @@
+spring:
+  config:
+    activate:
+      on-profile: dev
+
+management:
+  endpoint:
+    health:
+      show-details: always
+
+logging:
+  level:
+    co.edu.udistrital.accionesud: DEBUG
+
+accionesud:
+  security:
+    usuario: ${ACCIONESUD_SECURITY_USUARIO:usuario-dev}
+    clave: ${ACCIONESUD_SECURITY_CLAVE:clave-dev}
+    roles: ${ACCIONESUD_SECURITY_ROLES:INVERSIONISTA}

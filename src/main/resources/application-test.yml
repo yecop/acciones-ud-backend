@@ -1,0 +1,17 @@
+spring:
+  config:
+    activate:
+      on-profile: test
+  main:
+    banner-mode: "off"
+
+logging:
+  level:
+    root: WARN
+    co.edu.udistrital.accionesud: INFO
+
+accionesud:
+  security:
+    usuario: ${ACCIONESUD_SECURITY_USUARIO:usuario-test}
+    clave: ${ACCIONESUD_SECURITY_CLAVE:clave-test}
+    roles: ${ACCIONESUD_SECURITY_ROLES:INVERSIONISTA}
