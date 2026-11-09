@@ -1,5 +1,6 @@
 package co.edu.udistrital.accionesud.shared.infrastructure.adapter.in.rest.error;
 
+import co.edu.udistrital.accionesud.shared.domain.exception.DomainException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
 import org.slf4j.Logger;
@@ -122,6 +123,15 @@ public class GlobalExceptionHandler {
         CodigoError codigo = CodigoError.desdeStatus(status);
         String mensaje = ex.getReason() != null ? ex.getReason() : codigo.getMensaje();
         return respuesta(status, codigo.name(), mensaje, List.of(), Map.of(), request);
+    }
+
+    @ExceptionHandler(DomainException.class)
+    public ResponseEntity<ErrorResponse> manejarExcepcionDominio(DomainException ex,
+                                                                 HttpServletRequest request) {
+        HttpStatus status = ex.getCodigo() != null && ex.getCodigo().contains("NO_ENCONTRADO")
+                ? HttpStatus.NOT_FOUND
+                : HttpStatus.UNPROCESSABLE_ENTITY;
+        return respuesta(status, ex.getCodigo(), ex.getMessage(), List.of(), Map.of(), request);
     }
 
     @ExceptionHandler(AuthenticationException.class)

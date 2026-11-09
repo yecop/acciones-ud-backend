@@ -43,3 +43,25 @@ accionesud:
     usuario: ${ACCIONESUD_SECURITY_USUARIO:}
     clave: ${ACCIONESUD_SECURITY_CLAVE:}
     roles: ${ACCIONESUD_SECURITY_ROLES:INVERSIONISTA}
+  mercados:
+    # Lista de feriados configurable por mercado (fecha en formato ISO yyyy-MM-dd).
+    # Permite administrar cierres por feriado sin modificar el código de dominio.
+    feriados:
+      - mercado: NYSE
+        fecha: 2026-01-01
+        descripcion: "Año Nuevo"
+      - mercado: NASDAQ
+        fecha: 2026-01-01
+        descripcion: "Año Nuevo"
+      - mercado: NYSE
+        fecha: 2026-12-25
+        descripcion: "Navidad"
+      - mercado: LSE
+        fecha: 2026-12-25
+        descripcion: "Christmas Day"
+      - mercado: TSE
+        fecha: 2026-01-01
+        descripcion: "Ganjitsu (Año Nuevo)"
+      - mercado: ASX
+        fecha: 2026-01-26
+        descripcion: "Australia Day"
