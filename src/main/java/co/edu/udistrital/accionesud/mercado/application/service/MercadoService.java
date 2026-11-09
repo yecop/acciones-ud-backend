@@ -48,14 +48,14 @@ public class MercadoService implements ConsultarMercadosUseCase, ConsultarEstado
                 .orElseThrow(() -> new MercadoNoEncontradoException(codigo.name()));
 
         Instant ahora = reloj.ahora();
-        EstadoMercadoSnapshot snapshot = mercado.evaluarEstado(ahora);
 
-        // Los proveedores externos pueden forzar un cierre no planeado (halt).
-        Optional<ProveedorDatosMercadoPort.EstadoReportado> reportado = estadoReportado(codigo);
-        if (reportado.isPresent() && !reportado.get().abierto() && snapshot.abierto()) {
-            return mercado.evaluarEstado(ahora); // base para próximas aperturas/cierres
-        }
-        return snapshot;
+        // Los proveedores externos pueden reportar un estado real (p. ej. un cierre
+        // no planeado). Si lo hacen, se aplica como override sobre el cálculo por horario.
+        Boolean abiertoReportado = estadoReportado(codigo)
+                .map(ProveedorDatosMercadoPort.EstadoReportado::abierto)
+                .orElse(null);
+
+        return mercado.evaluarEstado(ahora, abiertoReportado);
     }
 
     private Optional<ProveedorDatosMercadoPort.EstadoReportado> estadoReportado(CodigoMercado codigo) {

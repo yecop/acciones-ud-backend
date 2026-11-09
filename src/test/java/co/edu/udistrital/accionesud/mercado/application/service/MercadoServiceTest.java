@@ -7,6 +7,7 @@ import co.edu.udistrital.accionesud.mercado.domain.model.EstadoMercadoSnapshot;
 import co.edu.udistrital.accionesud.mercado.domain.model.HorarioOperacion;
 import co.edu.udistrital.accionesud.mercado.domain.model.Mercado;
 import co.edu.udistrital.accionesud.mercado.domain.port.out.MercadoCatalogoPort;
+import co.edu.udistrital.accionesud.mercado.domain.port.out.ProveedorDatosMercadoPort;
 import co.edu.udistrital.accionesud.mercado.domain.port.out.RelojPort;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -92,5 +93,60 @@ class MercadoServiceTest {
 
         assertThatThrownBy(() -> service.consultarEstado(CodigoMercado.LSE))
                 .isInstanceOf(MercadoNoEncontradoException.class);
+    }
+
+    @Test
+    @DisplayName("Un cierre no planeado reportado por el proveedor fuerza estado CERRADO")
+    void proveedorFuerzaCierreNoPlaneado() {
+        // Lunes 11:00: por horario estaría ABIERTO, pero el proveedor reporta CERRADO (halt).
+        ProveedorDatosMercadoPort proveedor = proveedorQueReporta(CodigoMercado.NYSE, false);
+        MercadoService servicioConProveedor =
+                new MercadoService(catalogo, reloj, List.of(proveedor));
+
+        when(catalogo.buscarPorCodigo(CodigoMercado.NYSE)).thenReturn(Optional.of(nyse()));
+        when(reloj.ahora()).thenReturn(instanteNy(2026, 1, 5, 11, 0));
+
+        EstadoMercadoSnapshot estado = servicioConProveedor.consultarEstado(CodigoMercado.NYSE);
+
+        assertThat(estado.abierto()).isFalse();
+        assertThat(estado.restricciones())
+                .anyMatch(r -> r.codigo().equals("ESTADO_REPORTADO"));
+    }
+
+    @Test
+    @DisplayName("Si el proveedor confirma el estado por horario, no agrega restricción extra")
+    void proveedorConfirmaEstadoPorHorario() {
+        // Lunes 11:00: por horario ABIERTO, y el proveedor también reporta ABIERTO.
+        ProveedorDatosMercadoPort proveedor = proveedorQueReporta(CodigoMercado.NYSE, true);
+        MercadoService servicioConProveedor =
+                new MercadoService(catalogo, reloj, List.of(proveedor));
+
+        when(catalogo.buscarPorCodigo(CodigoMercado.NYSE)).thenReturn(Optional.of(nyse()));
+        when(reloj.ahora()).thenReturn(instanteNy(2026, 1, 5, 11, 0));
+
+        EstadoMercadoSnapshot estado = servicioConProveedor.consultarEstado(CodigoMercado.NYSE);
+
+        assertThat(estado.abierto()).isTrue();
+        assertThat(estado.restricciones())
+                .noneMatch(r -> r.codigo().equals("ESTADO_REPORTADO"));
+    }
+
+    private ProveedorDatosMercadoPort proveedorQueReporta(CodigoMercado codigo, boolean abierto) {
+        return new ProveedorDatosMercadoPort() {
+            @Override
+            public String nombre() {
+                return "TEST";
+            }
+
+            @Override
+            public java.util.Set<CodigoMercado> mercadosSoportados() {
+                return java.util.Set.of(codigo);
+            }
+
+            @Override
+            public Optional<EstadoReportado> consultarEstadoReportado(CodigoMercado c) {
+                return Optional.of(new EstadoReportado(abierto, "test"));
+            }
+        };
     }
 }

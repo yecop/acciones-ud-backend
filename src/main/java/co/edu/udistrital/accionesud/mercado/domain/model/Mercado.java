@@ -91,13 +91,35 @@ public final class Mercado {
      * @return snapshot inmutable con estado, próxima apertura, próximo cierre y restricciones.
      */
     public EstadoMercadoSnapshot evaluarEstado(java.time.Instant instante) {
+        return evaluarEstado(instante, null);
+    }
+
+    /**
+     * Evalúa el estado del mercado aplicando, si existe, un override reportado por
+     * un proveedor externo (p. ej. un cierre no planeado o una apertura especial).
+     *
+     * @param instante         instante absoluto (normalmente provisto por el RelojPort).
+     * @param abiertoReportado override de estado: {@code null} = usar el cálculo por horario.
+     * @return snapshot inmutable con estado, próxima apertura, próximo cierre y restricciones.
+     */
+    public EstadoMercadoSnapshot evaluarEstado(java.time.Instant instante, Boolean abiertoReportado) {
         Objects.requireNonNull(instante, "El instante es obligatorio");
         ZonedDateTime ahora = instante.atZone(zonaHoraria);
 
-        boolean abierto = estaAbierto(ahora);
+        boolean abiertoPorHorario = estaAbierto(ahora);
+        boolean abierto = abiertoReportado != null ? abiertoReportado : abiertoPorHorario;
+
         ZonedDateTime proximaApertura = calcularProximaApertura(ahora);
         ZonedDateTime proximoCierre = calcularProximoCierre(ahora);
-        List<Restriccion> restricciones = restriccionesVigentes(ahora.toLocalDate());
+
+        List<Restriccion> restricciones = new java.util.ArrayList<>(restriccionesVigentes(ahora.toLocalDate()));
+        if (abiertoReportado != null && abiertoReportado != abiertoPorHorario) {
+            restricciones.add(Restriccion.de(
+                    "ESTADO_REPORTADO",
+                    abiertoReportado
+                            ? "Apertura no planeada reportada por el proveedor de datos"
+                            : "Cierre no planeado reportado por el proveedor de datos"));
+        }
 
         return new EstadoMercadoSnapshot(
                 codigo,
