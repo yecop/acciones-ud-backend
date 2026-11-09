@@ -44,6 +44,21 @@ accionesud:
     clave: ${ACCIONESUD_SECURITY_CLAVE:}
     roles: ${ACCIONESUD_SECURITY_ROLES:INVERSIONISTA}
   mercados:
+    # Credenciales de proveedores de datos de mercado.
+    # Los valores reales llegan por variables de entorno (ver .env.example);
+    # aquí solo se referencian para no exponer secretos en el repositorio.
+    proveedores:
+      alpaca:
+        api-key: ${ALPACA_API_KEY:}
+        api-secret: ${ALPACA_API_SECRET:}
+        base-url: ${ALPACA_BASE_URL:https://paper-api.alpaca.markets}
+      alpha-vantage:
+        api-key: ${ALPHA_VANTAGE_API_KEY:}
+        base-url: ${ALPHA_VANTAGE_BASE_URL:https://www.alphavantage.co}
+      finnhub:
+        api-key: ${FINNHUB_API_KEY:}
+      polygon:
+        api-key: ${POLYGON_API_KEY:}
     # Lista de feriados configurable por mercado (fecha en formato ISO yyyy-MM-dd).
     # Permite administrar cierres por feriado sin modificar el código de dominio.
     feriados:
