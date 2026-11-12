@@ -43,3 +43,49 @@ accionesud:
     usuario: ${ACCIONESUD_SECURITY_USUARIO:}
     clave: ${ACCIONESUD_SECURITY_CLAVE:}
     roles: ${ACCIONESUD_SECURITY_ROLES:INVERSIONISTA}
+  cors:
+    # Orígenes permitidos para el frontend (separados por coma).
+    # Vite usa 5173 por defecto; CRA usa 3000.
+    allowed-origins: ${ACCIONESUD_CORS_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:3000}
+  mercados:
+    # Caché de respuestas de proveedores para respetar los límites de los planes
+    # gratuitos. El estado por horario no se cachea (es cálculo local e instantáneo).
+    cache:
+      enabled: ${MERCADOS_CACHE_ENABLED:true}
+      ttl-segundos: ${MERCADOS_CACHE_TTL_SEGUNDOS:60}
+    # Credenciales de proveedores de datos de mercado.
+    # Los valores reales llegan por variables de entorno (ver .env.example);
+    # aquí solo se referencian para no exponer secretos en el repositorio.
+    proveedores:
+      alpaca:
+        api-key: ${ALPACA_API_KEY:}
+        api-secret: ${ALPACA_API_SECRET:}
+        base-url: ${ALPACA_BASE_URL:https://paper-api.alpaca.markets}
+      alpha-vantage:
+        api-key: ${ALPHA_VANTAGE_API_KEY:}
+        base-url: ${ALPHA_VANTAGE_BASE_URL:https://www.alphavantage.co}
+      finnhub:
+        api-key: ${FINNHUB_API_KEY:}
+      polygon:
+        api-key: ${POLYGON_API_KEY:}
+    # Lista de feriados configurable por mercado (fecha en formato ISO yyyy-MM-dd).
+    # Permite administrar cierres por feriado sin modificar el código de dominio.
+    feriados:
+      - mercado: NYSE
+        fecha: 2026-01-01
+        descripcion: "Año Nuevo"
+      - mercado: NASDAQ
+        fecha: 2026-01-01
+        descripcion: "Año Nuevo"
+      - mercado: NYSE
+        fecha: 2026-12-25
+        descripcion: "Navidad"
+      - mercado: LSE
+        fecha: 2026-12-25
+        descripcion: "Christmas Day"
+      - mercado: TSE
+        fecha: 2026-01-01
+        descripcion: "Ganjitsu (Año Nuevo)"
+      - mercado: ASX
+        fecha: 2026-01-26
+        descripcion: "Australia Day"
