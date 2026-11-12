@@ -2,6 +2,11 @@ spring:
   config:
     activate:
       on-profile: dev
+  # --- nuevo ---
+  datasource:
+    url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/${POSTGRES_DB:acciones_ud}
+    username: ${POSTGRES_USER:acciones}
+    password: ${POSTGRES_PASSWORD:acciones_dev}
 
 management:
   endpoint:

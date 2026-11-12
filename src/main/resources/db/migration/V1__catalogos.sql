@@ -1,0 +1,28 @@
+CREATE TABLE rol (
+    id SMALLINT PRIMARY KEY,
+    nombre VARCHAR(30) NOT NULL UNIQUE
+);
+CREATE TABLE estado_usuario (
+    id SMALLINT PRIMARY KEY,
+    nombre VARCHAR(40) NOT NULL UNIQUE
+);
+CREATE TABLE nivel_experiencia (
+    id SMALLINT PRIMARY KEY,
+    nombre VARCHAR(30) NOT NULL UNIQUE
+);
+CREATE TABLE canal_notificacion (
+    id SMALLINT PRIMARY KEY,
+    nombre VARCHAR(30) NOT NULL UNIQUE
+);
+CREATE TABLE sector (
+    id SMALLINT PRIMARY KEY,
+    nombre VARCHAR(40) NOT NULL UNIQUE
+);
+CREATE TABLE tipo_orden (
+    id SMALLINT PRIMARY KEY,
+    nombre VARCHAR(30) NOT NULL UNIQUE
+);
+CREATE TABLE estado_orden (
+    id SMALLINT PRIMARY KEY,
+    nombre VARCHAR(40) NOT NULL UNIQUE
+);
