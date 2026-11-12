@@ -155,6 +155,17 @@ El resto requiere autenticacion. La ruta `/api/v1/admin/**` requiere rol
 Copiar `.env.example` y ajustar los valores locales. En produccion no se deben
 versionar secretos.
 
+## Base de datos local
+
+```bash
+docker compose up -d      # PostgreSQL, Redis y Mailpit
+./mvnw spring-boot:run    # Flyway aplica las migraciones al arrancar
+docker compose down -v    # reinicia la base desde cero
+```
+
+Las migraciones están en `src/main/resources/db/migration`. No se edita una
+migración ya fusionada: se crea una nueva.
+
 ## Ramas y commits
 
 Se usa GitHub Flow:
