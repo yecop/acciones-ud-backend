@@ -39,6 +39,16 @@ springdoc:
 
 accionesud:
   saldo-inicial-simulado: ${ACCIONESUD_SALDO_INICIAL_SIMULADO:100000.00}
+  auth:
+    alpaca:
+      base-url: ${ALPACA_BROKER_BASE_URL:https://broker-api.sandbox.alpaca.markets}
+      api-key: ${ALPACA_BROKER_API_KEY:}
+      api-secret: ${ALPACA_BROKER_API_SECRET:}
+      timeout-segundos: ${ALPACA_BROKER_TIMEOUT_SEGUNDOS:5}
+    reintento:
+      habilitado: ${ALTA_REINTENTO_HABILITADO:true}
+      intervalo-segundos: ${ALTA_REINTENTO_INTERVALO_SEGUNDOS:60}
+      maximo-por-ciclo: ${ALTA_REINTENTO_MAXIMO:20}
   security:
     usuario: ${ACCIONESUD_SECURITY_USUARIO:}
     clave: ${ACCIONESUD_SECURITY_CLAVE:}

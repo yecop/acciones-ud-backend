@@ -23,6 +23,8 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.NoHandlerFoundException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
+import co.edu.udistrital.accionesud.shared.domain.exception.ConflictoException;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 
 import java.util.List;
 import java.util.Map;
@@ -99,6 +101,14 @@ public class GlobalExceptionHandler {
                 List.of(), Map.of(), request);
     }
 
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ErrorResponse> manejarCuerpoIlegible(HttpMessageNotReadableException ex,
+                                                               HttpServletRequest request) {
+        return respuesta(HttpStatus.BAD_REQUEST, CodigoError.SOLICITUD_INVALIDA,
+                List.of("El cuerpo no es un JSON válido o contiene valores no permitidos"),
+                Map.of(), request);
+    }
+
     @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
     public ResponseEntity<ErrorResponse> manejarMetodoNoPermitido(HttpRequestMethodNotSupportedException ex,
                                                                   HttpServletRequest request) {
@@ -128,9 +138,14 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(DomainException.class)
     public ResponseEntity<ErrorResponse> manejarExcepcionDominio(DomainException ex,
                                                                  HttpServletRequest request) {
-        HttpStatus status = ex.getCodigo() != null && ex.getCodigo().contains("NO_ENCONTRADO")
-                ? HttpStatus.NOT_FOUND
-                : HttpStatus.UNPROCESSABLE_ENTITY;
+        HttpStatus status;
+        if (ex instanceof ConflictoException) {
+            status = HttpStatus.CONFLICT;
+        } else if (ex.getCodigo() != null && ex.getCodigo().contains("NO_ENCONTRADO")) {
+            status = HttpStatus.NOT_FOUND;
+        } else {
+            status = HttpStatus.UNPROCESSABLE_ENTITY;
+        }
         return respuesta(status, ex.getCodigo(), ex.getMessage(), List.of(), Map.of(), request);
     }
 
