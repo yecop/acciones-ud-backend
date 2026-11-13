@@ -102,6 +102,8 @@ La aplicacion queda en `http://localhost:8080`.
 | GET | `/actuator/health` | estado de la aplicacion |
 | GET | `/v3/api-docs` | especificacion OpenAPI |
 | GET | `/swagger-ui.html` | interfaz Swagger UI |
+| POST | `/api/v1/auth/registro` | registro de usuario y alta en Alpaca sandbox (público) |
+| POST | `/api/v1/admin/altas/reintentar` | reintenta altas pendientes (rol ADMIN) |
 
 ## Trazabilidad
 

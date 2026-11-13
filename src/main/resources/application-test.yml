@@ -19,6 +19,7 @@ logging:
 
 accionesud:
   security:
-    usuario: ${ACCIONESUD_SECURITY_USUARIO:usuario-test}
-    clave: ${ACCIONESUD_SECURITY_CLAVE:clave-test}
-    roles: ${ACCIONESUD_SECURITY_ROLES:INVERSIONISTA}
+    # Credenciales fijas para que las pruebas no dependan del entorno local.
+    usuario: usuario-test
+    clave: clave-test
+    roles: INVERSIONISTA
