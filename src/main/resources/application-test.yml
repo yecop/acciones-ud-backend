@@ -18,7 +18,6 @@ logging:
     co.edu.udistrital.accionesud: INFO
 
 accionesud:
-  security:
-    usuario: ${ACCIONESUD_SECURITY_USUARIO:usuario-test}
-    clave: ${ACCIONESUD_SECURITY_CLAVE:clave-test}
-    roles: ${ACCIONESUD_SECURITY_ROLES:INVERSIONISTA}
+  auth:
+    jwt:
+      secreto: ${AUTH_JWT_SECRET:test-secreto-jwt-acciones-ud-2026-32bytes-minimo}

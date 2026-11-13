@@ -13,6 +13,7 @@ import org.springframework.stereotype.Component;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Locale;
 
 @Component
 public class SecurityErrorHandler implements AuthenticationEntryPoint, AccessDeniedHandler {
@@ -28,7 +29,10 @@ public class SecurityErrorHandler implements AuthenticationEntryPoint, AccessDen
     @Override
     public void commence(HttpServletRequest request, HttpServletResponse response,
                          AuthenticationException authException) throws IOException {
-        escribir(request, response, CodigoError.NO_AUTENTICADO);
+        CodigoError codigo = esTokenExpirado(authException)
+                ? CodigoError.TOKEN_EXPIRADO
+                : CodigoError.NO_AUTENTICADO;
+        escribir(request, response, codigo);
     }
 
     @Override
@@ -43,9 +47,22 @@ public class SecurityErrorHandler implements AuthenticationEntryPoint, AccessDen
         response.setStatus(codigo.getStatus().value());
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         response.setCharacterEncoding(StandardCharsets.UTF_8.name());
-        if (codigo == CodigoError.NO_AUTENTICADO) {
-            response.setHeader(HttpHeaders.WWW_AUTHENTICATE, "Basic realm=\"acciones-ud\"");
+        if (codigo.getStatus().value() == 401) {
+            response.setHeader(HttpHeaders.WWW_AUTHENTICATE, "Bearer realm=\"acciones-ud\"");
         }
         objectMapper.writeValue(response.getOutputStream(), cuerpo);
+    }
+
+    private boolean esTokenExpirado(Throwable error) {
+        for (Throwable actual = error; actual != null; actual = actual.getCause()) {
+            if (actual.getClass().getSimpleName().contains("Expired")) {
+                return true;
+            }
+            String mensaje = actual.getMessage();
+            if (mensaje != null && mensaje.toLowerCase(Locale.ROOT).contains("expired")) {
+                return true;
+            }
+        }
+        return false;
     }
 }

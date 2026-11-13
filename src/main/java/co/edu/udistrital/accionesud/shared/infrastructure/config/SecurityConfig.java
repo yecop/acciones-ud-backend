@@ -10,12 +10,10 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.core.userdetails.User;
-import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.factory.PasswordEncoderFactories;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.provisioning.InMemoryUserDetailsManager;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
@@ -30,8 +28,11 @@ import java.util.List;
 public class SecurityConfig {
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http,
-                                                   SecurityErrorHandler errorHandler) throws Exception {
+    public SecurityFilterChain securityFilterChain(
+            HttpSecurity http,
+            SecurityErrorHandler errorHandler,
+            JwtDecoder jwtDecoder,
+            JwtAuthenticationConverter jwtAuthenticationConverter) throws Exception {
         http
                 .cors(Customizer.withDefaults())
                 .csrf(AbstractHttpConfigurer::disable)
@@ -44,11 +45,18 @@ public class SecurityConfig {
                                 "/swagger-ui/**",
                                 "/swagger-ui.html",
                                 "/error",
-                                "/api/v1/mercados/**")
+                                "/api/v1/mercados/**",
+                                "/api/v1/auth/login",
+                                "/api/v1/auth/mfa/**",
+                                "/api/v1/auth/refresh")
                         .permitAll()
                         .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated())
-                .httpBasic(basic -> basic.authenticationEntryPoint(errorHandler))
+                .oauth2ResourceServer(oauth2 -> oauth2
+                        .authenticationEntryPoint(errorHandler)
+                        .jwt(jwt -> jwt
+                                .decoder(jwtDecoder)
+                                .jwtAuthenticationConverter(jwtAuthenticationConverter)))
                 .exceptionHandling(exceptions -> exceptions
                         .authenticationEntryPoint(errorHandler)
                         .accessDeniedHandler(errorHandler));
@@ -79,25 +87,5 @@ public class SecurityConfig {
     @Bean
     public PasswordEncoder passwordEncoder() {
         return PasswordEncoderFactories.createDelegatingPasswordEncoder();
-    }
-
-    @Bean
-    public UserDetailsService userDetailsService(
-            PasswordEncoder passwordEncoder,
-            @Value("${accionesud.security.usuario:}") String usuario,
-            @Value("${accionesud.security.clave:}") String clave,
-            @Value("${accionesud.security.roles:}") String roles) {
-        if (usuario == null || usuario.isBlank() || clave == null || clave.isBlank()) {
-            return new InMemoryUserDetailsManager();
-        }
-        String[] rolesArray = Arrays.stream(roles.split(","))
-                .map(String::trim)
-                .filter(rol -> !rol.isBlank())
-                .toArray(String[]::new);
-        UserDetails userDetails = User.withUsername(usuario)
-                .password(passwordEncoder.encode(clave))
-                .roles(rolesArray)
-                .build();
-        return new InMemoryUserDetailsManager(userDetails);
     }
 }

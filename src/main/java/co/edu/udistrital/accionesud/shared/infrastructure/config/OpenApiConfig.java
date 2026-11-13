@@ -11,7 +11,7 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class OpenApiConfig {
 
-    private static final String ESQUEMA_SEGURIDAD = "basicAuth";
+    private static final String ESQUEMA_SEGURIDAD = "bearerAuth";
 
     @Bean
     public OpenAPI accionesUdOpenApi() {
@@ -23,7 +23,8 @@ public class OpenApiConfig {
                 .components(new Components()
                         .addSecuritySchemes(ESQUEMA_SEGURIDAD, new SecurityScheme()
                                 .type(SecurityScheme.Type.HTTP)
-                                .scheme("basic")))
+                                .scheme("bearer")
+                                .bearerFormat("JWT")))
                 .addSecurityItem(new SecurityRequirement().addList(ESQUEMA_SEGURIDAD));
     }
 }

@@ -39,10 +39,28 @@ springdoc:
 
 accionesud:
   saldo-inicial-simulado: ${ACCIONESUD_SALDO_INICIAL_SIMULADO:100000.00}
-  security:
-    usuario: ${ACCIONESUD_SECURITY_USUARIO:}
-    clave: ${ACCIONESUD_SECURITY_CLAVE:}
-    roles: ${ACCIONESUD_SECURITY_ROLES:INVERSIONISTA}
+  auth:
+    jwt:
+      secreto: ${AUTH_JWT_SECRET:}
+      emisor: ${AUTH_JWT_EMISOR:acciones-ud}
+      access-ttl-segundos: ${AUTH_ACCESS_TTL_SEGUNDOS:900}
+      refresh-ttl-segundos: ${AUTH_REFRESH_TTL_SEGUNDOS:604800}
+    mfa:
+      expiracion-segundos: ${AUTH_MFA_EXPIRACION_SEGUNDOS:300}
+      max-intentos: ${AUTH_MFA_MAX_INTENTOS:5}
+      bloqueo-segundos: ${AUTH_MFA_BLOQUEO_SEGUNDOS:900}
+      reenvio-espera-segundos: ${AUTH_MFA_REENVIO_ESPERA_SEGUNDOS:60}
+      max-reenvios: ${AUTH_MFA_MAX_REENVIOS:3}
+      longitud-codigo: ${AUTH_MFA_LONGITUD_CODIGO:6}
+    correo:
+      remitente: ${AUTH_CORREO_REMITENTE:no-reply@accionesud.local}
+      asunto: ${AUTH_CORREO_ASUNTO:Código de verificación - Acciones UD}
+    login:
+      max-fallos: ${AUTH_LOGIN_MAX_FALLOS:5}
+      ventana-segundos: ${AUTH_LOGIN_VENTANA_SEGUNDOS:900}
+    demo:
+      correo: ${AUTH_DEMO_CORREO:inversionista@accionesud.local}
+      clave: ${AUTH_DEMO_CLAVE:Clave123!}
   cors:
     # Orígenes permitidos para el frontend (separados por coma).
     # Vite usa 5173 por defecto; CRA usa 3000.
