@@ -9,7 +9,7 @@ entrada.
 
 - `AccionesUD-Docs/SAD_AccionesUD.pdf`: Documento de Diseno y Arquitectura de
   Software (SAD).
-- `AccionesUD-Docs/API_Endpoints_AccionesUD_2-1.pdf`: contrato de API REST.
+- `AccionesUD-Docs/API_Endpoints_AccionesUD_2-2.pdf`: contrato de API REST.
 - `AccionesUD-Docs/2026-3 Instrumento Financiero.pdf`: enunciado del cliente.
 
 ## Stack
@@ -19,8 +19,8 @@ entrada.
 - Maven Wrapper (`./mvnw`)
 - JUnit 5, Mockito, MockMvc y ArchUnit
 - SpringDoc OpenAPI
-- Spring Security (configuracion base)
-- PostgreSQL y Redis en fases posteriores
+- Spring Security con JWT (HS256) y MFA por correo
+- PostgreSQL y Mailpit para desarrollo local
 
 ## Arquitectura
 
@@ -71,7 +71,7 @@ El build falla si se rompe alguna regla.
 | Perfil | Uso | Observaciones |
 |---|---|---|
 | `dev` | desarrollo local | Swagger habilitado, logs legibles con traceId |
-| `test` | pruebas automatizadas | usuario de prueba en memoria |
+| `test` | pruebas automatizadas | sin base de datos; MFA y auth se prueban con adaptadores simulados |
 | `prod` | despliegue | logs JSON, Swagger deshabilitado por defecto |
 
 El perfil por defecto es `dev`.
@@ -102,6 +102,11 @@ La aplicacion queda en `http://localhost:8080`.
 | GET | `/actuator/health` | estado de la aplicacion |
 | GET | `/v3/api-docs` | especificacion OpenAPI |
 | GET | `/swagger-ui.html` | interfaz Swagger UI |
+| POST | `/api/v1/auth/login` | valida credenciales y envía código MFA |
+| POST | `/api/v1/auth/mfa/verificar` | valida el código y emite access/refresh tokens |
+| POST | `/api/v1/auth/mfa/reenviar` | reenvía el código MFA |
+| POST | `/api/v1/auth/refresh` | rota el refresh token |
+| POST | `/api/v1/auth/logout` | revoca la sesión autenticada |
 
 ## Trazabilidad
 
@@ -135,8 +140,10 @@ Cualquier error 400, 401, 403, 404 o 500 devuelve el siguiente cuerpo:
 
 ## Seguridad
 
-La base incluye Spring Security en modo stateless con HTTP Basic para `dev` y
-`test`. El modulo `auth` reemplazara esta configuracion con MFA y roles reales.
+La API es stateless y usa JWT firmados con HS256. El login nunca emite tokens
+directamente: primero envía un código MFA de 6 dígitos y solo después de
+verificarlo entrega access y refresh tokens. El refresh token rota en cada uso
+y su reutilización revoca toda la familia de tokens.
 
 Rutas publicas:
 
@@ -146,9 +153,17 @@ Rutas publicas:
 - `/swagger-ui/**`
 - `/swagger-ui.html`
 - `/error`
+- `/api/v1/auth/login`
+- `/api/v1/auth/mfa/**`
+- `/api/v1/auth/refresh`
 
-El resto requiere autenticacion. La ruta `/api/v1/admin/**` requiere rol
-`ADMIN`.
+El resto requiere `Authorization: Bearer <accessToken>`. La ruta
+`/api/v1/admin/**` requiere rol `ADMIN`.
+
+En el perfil `dev` se crea el usuario demo
+`inversionista@accionesud.local` con clave `Clave123!` (configurable con
+`AUTH_DEMO_CORREO` y `AUTH_DEMO_CLAVE`). Los códigos MFA se envían a Mailpit en
+`http://localhost:8025`.
 
 ## Variables de entorno
 
