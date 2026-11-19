@@ -125,3 +125,24 @@ accionesud:
       - mercado: ASX
         fecha: 2026-01-26
         descripcion: "Australia Day"
+
+---
+# SCRUM-24: en las pruebas, caché de cotizaciones en memoria y actualizador apagado
+# (las pruebas ejecutan los ciclos a mano). Se define aquí, y no en application-test.yml,
+# para no chocar con otras ramas que modifican ese archivo.
+spring:
+  config:
+    activate:
+      on-profile: test
+
+accionesud:
+  mercados:
+    cotizaciones:
+      actualizador-habilitado: false
+      cache:
+        tipo: memoria
+
+management:
+  health:
+    redis:
+      enabled: false

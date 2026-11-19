@@ -22,14 +22,3 @@ accionesud:
     usuario: ${ACCIONESUD_SECURITY_USUARIO:usuario-test}
     clave: ${ACCIONESUD_SECURITY_CLAVE:clave-test}
     roles: ${ACCIONESUD_SECURITY_ROLES:INVERSIONISTA}
-  # SCRUM-24: las pruebas usan la caché en memoria y disparan el actualizador a mano.
-  mercados:
-    cotizaciones:
-      actualizador-habilitado: false
-      cache:
-        tipo: memoria
-
-management:
-  health:
-    redis:
-      enabled: false
