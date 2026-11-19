@@ -78,6 +78,17 @@ public class MercadoHttpClient {
         return respuesta;
     }
 
+    /**
+     * Ejecuta un GET SIN pasar por la caché TTL de este cliente. Lo usa el servicio de
+     * cotizaciones (SCRUM-24), que tiene su propia caché por ticker y su propio
+     * limitador de cuota, y necesita datos frescos en cada ciclo de 5 s.
+     *
+     * @return el JSON parseado, o vacío si la consulta falla (el motivo queda en el log).
+     */
+    public Optional<JsonNode> getJsonSinCache(String url, Map<String, String> cabeceras) {
+        return ejecutarGet(url, cabeceras);
+    }
+
     /** Invalida toda la caché (útil para pruebas o refresco manual). */
     public void limpiarCache() {
         cache.clear();

@@ -102,11 +102,55 @@ La aplicacion queda en `http://localhost:8080`.
 | GET | `/actuator/health` | estado de la aplicacion |
 | GET | `/v3/api-docs` | especificacion OpenAPI |
 | GET | `/swagger-ui.html` | interfaz Swagger UI |
+| POST | `/api/v1/auth/registro` | registro de usuario y alta en Alpaca sandbox (público) |
 | POST | `/api/v1/auth/login` | valida credenciales y envía código MFA |
 | POST | `/api/v1/auth/mfa/verificar` | valida el código y emite access/refresh tokens |
 | POST | `/api/v1/auth/mfa/reenviar` | reenvía el código MFA |
 | POST | `/api/v1/auth/refresh` | rota el refresh token |
 | POST | `/api/v1/auth/logout` | revoca la sesión autenticada |
+| POST | `/api/v1/admin/altas/reintentar` | reintenta altas pendientes (rol ADMIN) |
+
+## Datos de mercado con cache (SCRUM-24)
+
+Los usuarios nunca consultan a Alpaca. Un unico actualizador programado
+(`ActualizadorCotizacionesScheduler`) hace **una** consulta agrupada de los 10
+tickers de EE. UU. (`/v2/stocks/snapshots?symbols=...&feed=iex`) cada 5 s con el
+mercado abierto (12 llamadas/min) a traves de `DatosMercadoPort` →
+`AdaptadorAlpacaDatos`, y guarda el resultado en Redis (un HASH por ticker:
+`accionesud:cotizacion:<TICKER>` con `precio, bid, ask, spread, volumen,
+actualizadoEn, fuente`). Los endpoints leen siempre de la cache:
+
+| Metodo | Ruta | Descripcion |
+|---|---|---|
+| GET | `/api/v1/acciones?mercado=&sector=&q=&pagina=0&tamano=20` | listado paginado con filtros |
+| GET | `/api/v1/acciones/{ticker}` | detalle con la ultima cotizacion en cache |
+| GET | `/api/v1/acciones/{ticker}/cotizacion` | cotizacion; 502 `PROVEEDOR_NO_DISPONIBLE` si nunca hubo dato |
+
+LSE, TSE y ASX usan una segunda fuente (`AdaptadorInternacionalDatos`) con la
+cadena de SCRUM-23: Alpha Vantage (primario) → Finnhub → Polygon. Como esos
+proveedores cotizan un simbolo por llamada y sus planes gratuitos son muy
+limitados, el actualizador internacional corre cada 60 s y consulta el ticker que
+lleva mas tiempo sin actualizarse (con mercado cerrado solo precarga los que aun
+no tienen dato). Los sufijos de simbolo por bolsa son configurables
+(`accionesud.mercados.cotizaciones.internacional.sufijos`).
+
+- Dato de EE. UU. con mas de 15 s → `desactualizada: true` y advertencia `DATO_DESACTUALIZADO`.
+  Internacionales: umbral `COTIZACIONES_INTERNACIONAL_UMBRAL_SEGUNDOS` (1800 s).
+  La respuesta incluye `umbralAntiguedadSegundos` para que el frontend use el mismo valor.
+- Si el proveedor de un mercado falla se sirve el ultimo dato con advertencia `PROVEEDOR_NO_DISPONIBLE`.
+- El 502 incluye `Retry-After` (y `datos.reintentarEnSegundos`) con el intervalo del actualizador
+  del mercado de la accion: `COTIZACIONES_INTERVALO_MS` para NYSE/NASDAQ (5 s) y
+  `COTIZACIONES_INTERNACIONAL_INTERVALO_MS` para LSE/TSE/ASX (60 s).
+- Limitador de cuota por proveedor (Token Bucket + ventana movil): tope de diseno
+  60 % del plan. Alpaca: 60 % de 200/min = 120/min. Alpha Vantage: 60 % de 5/min y
+  de 25/dia. Finnhub: 60 % de 60/min. Polygon: 60 % de 5/min. Si se intenta superar,
+  se rechaza la llamada (en internacionales se pasa al siguiente proveedor) y se
+  registra un log `ERROR` con el marcador `ALARMA_CUOTA_<PROVEEDOR>`.
+- Si Redis no responde, la lectura usa una copia local en memoria.
+
+```bash
+docker compose up -d redis
+```
 
 ## Trazabilidad
 
@@ -153,6 +197,7 @@ Rutas publicas:
 - `/swagger-ui/**`
 - `/swagger-ui.html`
 - `/error`
+- `/api/v1/auth/registro`
 - `/api/v1/auth/login`
 - `/api/v1/auth/mfa/**`
 - `/api/v1/auth/refresh`

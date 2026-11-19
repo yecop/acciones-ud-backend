@@ -7,11 +7,14 @@ import co.edu.udistrital.accionesud.auth.application.port.in.CerrarSesionUseCase
 import co.edu.udistrital.accionesud.auth.application.port.in.IniciarSesionUseCase;
 import co.edu.udistrital.accionesud.auth.application.port.in.ReenviarMfaUseCase;
 import co.edu.udistrital.accionesud.auth.application.port.in.RefrescarTokenUseCase;
+import co.edu.udistrital.accionesud.auth.application.port.in.RegistrarUsuarioUseCase;
 import co.edu.udistrital.accionesud.auth.application.port.in.VerificarMfaUseCase;
 import co.edu.udistrital.accionesud.auth.infrastructure.adapter.in.rest.dto.LoginRequest;
 import co.edu.udistrital.accionesud.auth.infrastructure.adapter.in.rest.dto.LoginResponse;
 import co.edu.udistrital.accionesud.auth.infrastructure.adapter.in.rest.dto.RefreshTokenRequest;
 import co.edu.udistrital.accionesud.auth.infrastructure.adapter.in.rest.dto.ReenviarMfaRequest;
+import co.edu.udistrital.accionesud.auth.infrastructure.adapter.in.rest.dto.RegistroRequest;
+import co.edu.udistrital.accionesud.auth.infrastructure.adapter.in.rest.dto.RegistroResponse;
 import co.edu.udistrital.accionesud.auth.infrastructure.adapter.in.rest.dto.TokensResponse;
 import co.edu.udistrital.accionesud.auth.infrastructure.adapter.in.rest.dto.VerificarMfaRequest;
 import co.edu.udistrital.accionesud.shared.infrastructure.adapter.in.rest.trace.TraceIdContext;
@@ -20,6 +23,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.context.annotation.Profile;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -33,7 +37,7 @@ import java.util.UUID;
 @RestController
 @Profile("!test")
 @RequestMapping("/api/v1/auth")
-@Tag(name = "Autenticación", description = "Login con MFA, refresh y cierre de sesión")
+@Tag(name = "Autenticación", description = "Registro, login con MFA, refresh y cierre de sesión")
 public class AuthController {
 
     private final IniciarSesionUseCase iniciarSesion;
@@ -41,24 +45,34 @@ public class AuthController {
     private final ReenviarMfaUseCase reenviarMfa;
     private final RefrescarTokenUseCase refrescarToken;
     private final CerrarSesionUseCase cerrarSesion;
+    private final RegistrarUsuarioUseCase registrarUsuario;
 
     public AuthController(
             IniciarSesionUseCase iniciarSesion,
             VerificarMfaUseCase verificarMfa,
             ReenviarMfaUseCase reenviarMfa,
             RefrescarTokenUseCase refrescarToken,
-            CerrarSesionUseCase cerrarSesion) {
+            CerrarSesionUseCase cerrarSesion,
+            RegistrarUsuarioUseCase registrarUsuario) {
         this.iniciarSesion = iniciarSesion;
         this.verificarMfa = verificarMfa;
         this.reenviarMfa = reenviarMfa;
         this.refrescarToken = refrescarToken;
         this.cerrarSesion = cerrarSesion;
+        this.registrarUsuario = registrarUsuario;
+    }
+
+    @PostMapping("/registro")
+    @Operation(summary = "Registra un usuario y solicita el alta en Alpaca sandbox")
+    public ResponseEntity<RegistroResponse> registrar(@Valid @RequestBody RegistroRequest solicitud) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(RegistroResponse.desde(registrarUsuario.registrar(solicitud.aComando())));
     }
 
     @PostMapping("/login")
     @Operation(summary = "Valida las credenciales y envía el código MFA")
     public ResponseEntity<LoginResponse> login(@Valid @RequestBody LoginRequest solicitud,
-                                               HttpServletRequest request) {
+                                                HttpServletRequest request) {
         ResultadoLogin resultado = iniciarSesion.iniciarSesion(
                 solicitud.correo(), solicitud.contrasena(), contexto(request));
         return ResponseEntity.ok(LoginResponse.desde(resultado));
@@ -67,7 +81,7 @@ public class AuthController {
     @PostMapping("/mfa/verificar")
     @Operation(summary = "Verifica el código MFA y emite los tokens")
     public ResponseEntity<TokensResponse> verificar(@Valid @RequestBody VerificarMfaRequest solicitud,
-                                                    HttpServletRequest request) {
+                                                     HttpServletRequest request) {
         ResultadoTokens resultado = verificarMfa.verificarMfa(
                 solicitud.mfaToken(), solicitud.codigo(), contexto(request));
         return ResponseEntity.ok(TokensResponse.desde(resultado));
@@ -76,7 +90,7 @@ public class AuthController {
     @PostMapping("/mfa/reenviar")
     @Operation(summary = "Reenvía el código MFA")
     public ResponseEntity<Void> reenviar(@Valid @RequestBody ReenviarMfaRequest solicitud,
-                                         HttpServletRequest request) {
+                                          HttpServletRequest request) {
         reenviarMfa.reenviarMfa(solicitud.mfaToken(), contexto(request));
         return ResponseEntity.noContent().build();
     }
@@ -84,7 +98,7 @@ public class AuthController {
     @PostMapping("/refresh")
     @Operation(summary = "Rota el refresh token y emite un nuevo access token")
     public ResponseEntity<TokensResponse> refresh(@Valid @RequestBody RefreshTokenRequest solicitud,
-                                                  HttpServletRequest request) {
+                                                   HttpServletRequest request) {
         ResultadoTokens resultado = refrescarToken.refrescarToken(
                 solicitud.refreshToken(), contexto(request));
         return ResponseEntity.ok(TokensResponse.desde(resultado));
@@ -93,8 +107,8 @@ public class AuthController {
     @PostMapping("/logout")
     @Operation(summary = "Invalida la sesión y revoca el refresh token")
     public ResponseEntity<Void> logout(@Valid @RequestBody RefreshTokenRequest solicitud,
-                                       @AuthenticationPrincipal Jwt jwt,
-                                       HttpServletRequest request) {
+                                        @AuthenticationPrincipal Jwt jwt,
+                                        HttpServletRequest request) {
         cerrarSesion.cerrarSesion(
                 solicitud.refreshToken(), UUID.fromString(jwt.getSubject()), contexto(request));
         return ResponseEntity.noContent().build();

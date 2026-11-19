@@ -10,6 +10,8 @@ public class AuthProperties {
     private Correo correo = new Correo();
     private Login login = new Login();
     private Demo demo = new Demo();
+    private Alpaca alpaca = new Alpaca();
+    private Reintento reintento = new Reintento();
 
     public Jwt getJwt() {
         return jwt;
@@ -49,6 +51,30 @@ public class AuthProperties {
 
     public void setDemo(Demo demo) {
         this.demo = demo;
+    }
+
+    public Alpaca getAlpaca() {
+        return alpaca;
+    }
+
+    public void setAlpaca(Alpaca alpaca) {
+        this.alpaca = alpaca;
+    }
+
+    public Reintento getReintento() {
+        return reintento;
+    }
+
+    public void setReintento(Reintento reintento) {
+        this.reintento = reintento;
+    }
+
+    public Alpaca alpaca() {
+        return alpaca;
+    }
+
+    public Reintento reintento() {
+        return reintento;
     }
 
     public static class Jwt {
@@ -207,6 +233,107 @@ public class AuthProperties {
 
         public void setClave(String clave) {
             this.clave = clave;
+        }
+    }
+
+    public static class Alpaca {
+        private String baseUrl = "https://broker-api.sandbox.alpaca.markets";
+        private String apiKey = "";
+        private String apiSecret = "";
+        private int timeoutSegundos = 5;
+
+        public String getBaseUrl() {
+            return baseUrl;
+        }
+
+        public void setBaseUrl(String baseUrl) {
+            this.baseUrl = baseUrl;
+        }
+
+        public String getApiKey() {
+            return apiKey;
+        }
+
+        public void setApiKey(String apiKey) {
+            this.apiKey = apiKey;
+        }
+
+        public String getApiSecret() {
+            return apiSecret;
+        }
+
+        public void setApiSecret(String apiSecret) {
+            this.apiSecret = apiSecret;
+        }
+
+        public int getTimeoutSegundos() {
+            return timeoutSegundos;
+        }
+
+        public void setTimeoutSegundos(int timeoutSegundos) {
+            this.timeoutSegundos = timeoutSegundos;
+        }
+
+        public String baseUrl() {
+            return baseUrl;
+        }
+
+        public String apiKey() {
+            return apiKey;
+        }
+
+        public String apiSecret() {
+            return apiSecret;
+        }
+
+        public int timeoutSegundos() {
+            return timeoutSegundos;
+        }
+
+        public boolean estaConfigurado() {
+            return apiKey != null && !apiKey.isBlank() && apiSecret != null && !apiSecret.isBlank();
+        }
+    }
+
+    public static class Reintento {
+        private boolean habilitado = true;
+        private long intervaloSegundos = 60;
+        private int maximoPorCiclo = 20;
+
+        public boolean isHabilitado() {
+            return habilitado;
+        }
+
+        public void setHabilitado(boolean habilitado) {
+            this.habilitado = habilitado;
+        }
+
+        public long getIntervaloSegundos() {
+            return intervaloSegundos;
+        }
+
+        public void setIntervaloSegundos(long intervaloSegundos) {
+            this.intervaloSegundos = intervaloSegundos;
+        }
+
+        public int getMaximoPorCiclo() {
+            return maximoPorCiclo;
+        }
+
+        public void setMaximoPorCiclo(int maximoPorCiclo) {
+            this.maximoPorCiclo = maximoPorCiclo;
+        }
+
+        public boolean habilitado() {
+            return habilitado;
+        }
+
+        public long intervaloSegundos() {
+            return intervaloSegundos;
+        }
+
+        public int maximoPorCiclo() {
+            return maximoPorCiclo;
         }
     }
 }

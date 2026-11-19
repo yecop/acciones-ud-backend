@@ -1,5 +1,10 @@
 package co.edu.udistrital.accionesud.mercado.infrastructure.adapter.out.proveedor.internacional;
 
+import co.edu.udistrital.accionesud.mercado.domain.model.Cotizacion;
+import java.math.BigDecimal;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import co.edu.udistrital.accionesud.mercado.domain.model.CodigoMercado;
 import co.edu.udistrital.accionesud.mercado.domain.port.out.ProveedorDatosMercadoPort.EstadoReportado;
 import co.edu.udistrital.accionesud.mercado.infrastructure.adapter.out.proveedor.http.MercadoHttpClient;
@@ -80,5 +85,41 @@ public class AlphaVantageProveedor implements ProveedorInternacional {
             case ASX -> "Australia";
             default -> null;
         };
+    }
+
+    /**
+     * {@code GET /query?function=GLOBAL_QUOTE&symbol=BP.LON}. Alpha Vantage no entrega bid/ask
+     * en este endpoint; si se agota su cuota responde 200 con "Note"/"Information" en lugar de
+     * "Global Quote", lo que se trata como falla para pasar al respaldo.
+     */
+    @Override
+    public Optional<Cotizacion> cotizar(String simbolo, String ticker, Instant recibidoEn) {
+        if (!estaDisponible()) {
+            return Optional.empty();
+        }
+        String url = config.getBaseUrl() + "/query?function=GLOBAL_QUOTE&symbol="
+                + URLEncoder.encode(simbolo, StandardCharsets.UTF_8) + "&apikey=" + config.getApiKey();
+        return httpClient.getJsonSinCache(url, Map.of())
+                .map(json -> json.path("Global Quote"))
+                .flatMap(quote -> {
+                    BigDecimal precio = decimal(quote.path("05. price"));
+                    if (precio == null) {
+                        return Optional.empty();
+                    }
+                    long volumen = quote.path("06. volume").asLong(0);
+                    return Optional.of(Cotizacion.de(ticker, precio, null, null, volumen, recibidoEn, nombre()));
+                });
+    }
+
+    private static BigDecimal decimal(JsonNode nodo) {
+        if (nodo == null || nodo.isMissingNode() || nodo.isNull()) {
+            return null;
+        }
+        try {
+            BigDecimal valor = new BigDecimal(nodo.asText().trim());
+            return valor.signum() > 0 ? valor : null;
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 }

@@ -46,6 +46,7 @@ public class SecurityConfig {
                                 "/swagger-ui.html",
                                 "/error",
                                 "/api/v1/mercados/**",
+                                "/api/v1/auth/registro",
                                 "/api/v1/auth/login",
                                 "/api/v1/auth/mfa/**",
                                 "/api/v1/auth/refresh")
