@@ -352,7 +352,7 @@ class AuthIntegrationTest {
             }
 
             assertThat(respuestas).extracting(Respuesta::status)
-                    .containsExactlyInAnyOrder(401, 401, 401, 401, 401, 429, 429, 429);
+                    .containsExactlyInAnyOrder(401, 401, 401, 401, 429, 429, 429, 429);
             assertThat(respuestas).filteredOn(respuesta -> respuesta.status() == 401)
                     .allSatisfy(respuesta -> assertThat(respuesta.cuerpo())
                             .contains("\"codigo\":\"MFA_INVALIDO\""));
