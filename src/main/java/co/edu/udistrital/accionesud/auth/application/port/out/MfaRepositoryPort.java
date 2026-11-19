@@ -17,4 +17,7 @@ public interface MfaRepositoryPort {
 
     Optional<DesafioMfa> registrarIntentoFallido(String tokenHash, Instant ahora,
                                                  Instant bloqueoHasta);
+
+    Optional<DesafioMfa> reservarReenvio(String tokenHash, String codigoHash, Instant expiraEn,
+                                         Instant ahora, Instant limiteUltimoEnvio);
 }

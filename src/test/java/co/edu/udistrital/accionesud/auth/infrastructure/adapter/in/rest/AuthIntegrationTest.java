@@ -2,8 +2,10 @@ package co.edu.udistrital.accionesud.auth.infrastructure.adapter.in.rest;
 
 import co.edu.udistrital.accionesud.auth.application.port.out.HasheadorPort;
 import co.edu.udistrital.accionesud.auth.application.port.out.NotificadorMfaPort;
+import co.edu.udistrital.accionesud.auth.application.port.out.RelojPort;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 import org.mockito.ArgumentCaptor;
@@ -24,6 +26,7 @@ import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -39,9 +42,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.matches;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
@@ -67,7 +72,7 @@ class AuthIntegrationTest {
         registry.add("spring.datasource.password", postgres::getPassword);
         registry.add("accionesud.auth.jwt.secreto",
                 () -> "integration-secreto-jwt-acciones-ud-2026-32bytes");
-        registry.add("accionesud.auth.mfa.reenvio-espera-segundos", () -> "0");
+        registry.add("accionesud.auth.mfa.reenvio-espera-segundos", () -> "60");
     }
 
     @Autowired
@@ -84,6 +89,14 @@ class AuthIntegrationTest {
 
     @SpyBean
     private HasheadorPort hasheador;
+
+    @MockBean
+    private RelojPort reloj;
+
+    @BeforeEach
+    void configurarReloj() {
+        Mockito.lenient().when(reloj.ahora()).thenAnswer(inv -> Instant.now());
+    }
 
     @Test
     void flujoCompletoLoginMfaRefreshYLogout() throws Exception {
@@ -105,6 +118,7 @@ class AuthIntegrationTest {
         String mfaToken = json(login).get("mfaToken").asText();
         assertThat(mfaToken).isNotBlank();
         String primerCodigo = ultimoCodigoEnviado();
+        when(reloj.ahora()).thenReturn(Instant.now().plusSeconds(61));
 
         mockMvc.perform(post("/api/v1/auth/mfa/reenviar")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -381,15 +395,100 @@ class AuthIntegrationTest {
         }
     }
 
+    @Test
+    @Timeout(60)
+    void reenviarMfaConcurrenteEnviaUnSoloCodigoYCuentaUnReenvio() throws Exception {
+        Instant base = Instant.now().minusSeconds(120);
+        when(reloj.ahora()).thenReturn(base);
+        MvcResult login = mockMvc.perform(post("/api/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"correo\":\"" + CORREO + "\",\"contrasena\":\"" + CLAVE + "\"}"))
+                .andExpect(status().isOk())
+                .andReturn();
+        when(reloj.ahora()).thenReturn(base.plusSeconds(61));
+        String mfaToken = json(login).get("mfaToken").asText();
+        String tokenHash = hasheador.hash(mfaToken);
+
+        Integer reenviosAntes = jdbc.queryForObject(
+                "SELECT reenvios FROM auth_mfa_desafio WHERE token_hash = ?",
+                Integer.class, tokenHash);
+        long correosAntes = Mockito.mockingDetails(notificador).getInvocations().stream()
+                .filter(inv -> inv.getMethod().getName().equals("enviarCodigo"))
+                .count();
+        Integer exitososAntes = contarIntentos("MFA_REENVIO", "EXITOSO", "código reenviado");
+        Integer limiteAntes = contarIntentos(
+                "MFA_REENVIO", "LIMITADO", "espera entre reenvíos MFA");
+
+        int concurrentes = 8;
+        ExecutorService executor = Executors.newFixedThreadPool(concurrentes);
+        CountDownLatch salida = new CountDownLatch(1);
+        CyclicBarrier barrera = new CyclicBarrier(concurrentes);
+        doAnswer(invocation -> {
+            Object codigoHash = invocation.callRealMethod();
+            barrera.await(30, TimeUnit.SECONDS);
+            return codigoHash;
+        }).when(hasheador).hash(matches("\\d{6}"));
+
+        Callable<Respuesta> peticion = () -> {
+            salida.await(30, TimeUnit.SECONDS);
+            MvcResult resultado = mockMvc.perform(post("/api/v1/auth/mfa/reenviar")
+                            .header("X-Trace-Id", UUID.randomUUID().toString())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"mfaToken\":\"" + mfaToken + "\"}"))
+                    .andReturn();
+            return new Respuesta(resultado.getResponse().getStatus(),
+                    resultado.getResponse().getContentAsString());
+        };
+
+        try {
+            List<Future<Respuesta>> futuros = new ArrayList<>();
+            for (int i = 0; i < concurrentes; i++) {
+                futuros.add(executor.submit(peticion));
+            }
+            salida.countDown();
+
+            List<Respuesta> respuestas = new ArrayList<>();
+            for (Future<Respuesta> futuro : futuros) {
+                respuestas.add(futuro.get(30, TimeUnit.SECONDS));
+            }
+
+            assertThat(respuestas).extracting(Respuesta::status)
+                    .containsExactlyInAnyOrder(204, 429, 429, 429, 429, 429, 429, 429);
+            assertThat(respuestas).filteredOn(respuesta -> respuesta.status() == 429)
+                    .allSatisfy(respuesta -> assertThat(respuesta.cuerpo())
+                            .contains("\"codigo\":\"DEMASIADAS_SOLICITUDES\""));
+
+            Integer reenviosDespues = jdbc.queryForObject(
+                    "SELECT reenvios FROM auth_mfa_desafio WHERE token_hash = ?",
+                    Integer.class, tokenHash);
+            long correosDespues = Mockito.mockingDetails(notificador).getInvocations().stream()
+                    .filter(inv -> inv.getMethod().getName().equals("enviarCodigo"))
+                    .count();
+
+            assertThat(reenviosDespues).isEqualTo(reenviosAntes + 1);
+            assertThat(correosDespues - correosAntes).isEqualTo(1L);
+            assertThat(contarIntentos("MFA_REENVIO", "EXITOSO", "código reenviado")
+                    - exitososAntes).isEqualTo(1);
+            assertThat(contarIntentos("MFA_REENVIO", "LIMITADO", "espera entre reenvíos MFA")
+                    - limiteAntes).isEqualTo(7);
+        } finally {
+            executor.shutdownNow();
+            Mockito.doCallRealMethod().when(hasheador).hash(anyString());
+        }
+    }
+
     private JsonNode json(MvcResult result) throws Exception {
         return objectMapper.readTree(result.getResponse().getContentAsString());
     }
 
     private Integer contarIntentos(String resultado, String motivo) {
+        return contarIntentos("MFA_VERIFICACION", resultado, motivo);
+    }
+
+    private Integer contarIntentos(String tipo, String resultado, String motivo) {
         return jdbc.queryForObject(
-                "SELECT count(*) FROM auth_intento WHERE tipo = 'MFA_VERIFICACION' "
-                        + "AND resultado = ? AND motivo = ?",
-                Integer.class, resultado, motivo);
+                "SELECT count(*) FROM auth_intento WHERE tipo = ? AND resultado = ? AND motivo = ?",
+                Integer.class, tipo, resultado, motivo);
     }
 
     private String ultimoCodigoEnviado() {

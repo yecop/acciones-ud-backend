@@ -213,35 +213,17 @@ public class ServicioAutenticacion implements
     @Override
     public void reenviarMfa(String mfaToken, ContextoIntento contexto) {
         Instant ahora = reloj.ahora();
-        DesafioMfa desafio = desafios.buscarPorTokenHash(hasheador.hash(mfaToken))
-                .orElseThrow(MfaInvalidoException::new);
-
-        if (desafio.estaUsado()) {
-            throw new MfaInvalidoException();
-        }
-        if (desafio.estaBloqueado(ahora)) {
-            throw new DemasiadasSolicitudesException(segundosHasta(ahora, desafio.bloqueadoHasta()));
-        }
-        if (desafio.reenvios() >= desafio.maxReenvios()) {
-            registrar(desafio.usuarioId(), null, TipoIntento.MFA_REENVIO,
-                    ResultadoIntento.LIMITADO, "máximo de reenvíos MFA", contexto, ahora);
-            throw new DemasiadasSolicitudesException(politica.reenvioEspera().toSeconds());
-        }
-        if (desafio.ultimoEnvioEn() != null) {
-            Instant disponibleEn = desafio.ultimoEnvioEn().plus(politica.reenvioEspera());
-            if (ahora.isBefore(disponibleEn)) {
-                registrar(desafio.usuarioId(), null, TipoIntento.MFA_REENVIO,
-                        ResultadoIntento.LIMITADO, "espera entre reenvíos MFA", contexto, ahora);
-                throw new DemasiadasSolicitudesException(segundosHasta(ahora, disponibleEn));
-            }
-        }
-
+        String tokenHash = hasheador.hash(mfaToken);
         String codigo = generadorCodigo.generar();
         Instant expiraEn = ahora.plus(politica.mfaExpiracion());
-        DesafioMfa actualizado = desafio.reenviado(hasheador.hash(codigo), expiraEn, ahora);
-        desafios.actualizar(actualizado);
+        Instant limiteUltimoEnvio = ahora.minus(politica.reenvioEspera());
+        Optional<DesafioMfa> reservado = desafios.reservarReenvio(
+                tokenHash, hasheador.hash(codigo), expiraEn, ahora, limiteUltimoEnvio);
+        if (reservado.isEmpty()) {
+            rechazarReenvioNoDisponible(tokenHash, ahora, contexto);
+        }
 
-        Usuario usuario = usuarios.buscarPorId(desafio.usuarioId())
+        Usuario usuario = usuarios.buscarPorId(reservado.get().usuarioId())
                 .orElseThrow(MfaInvalidoException::new);
         notificador.enviarCodigo(usuario.correo(), codigo, expiraEn);
         registrar(usuario.id(), usuario.correo(), TipoIntento.MFA_REENVIO,
@@ -331,6 +313,36 @@ public class ServicioAutenticacion implements
         registrar(null, null, TipoIntento.MFA_VERIFICACION, ResultadoIntento.FALLIDO,
                 "desafío MFA no disponible", contexto, ahora);
         throw new MfaInvalidoException();
+    }
+
+    private void rechazarReenvioNoDisponible(String tokenHash, Instant ahora,
+                                             ContextoIntento contexto) {
+        DesafioMfa estado = desafios.buscarPorTokenHash(tokenHash).orElse(null);
+        if (estado == null) {
+            registrar(null, null, TipoIntento.MFA_REENVIO, ResultadoIntento.FALLIDO,
+                    "desafío MFA inexistente", contexto, ahora);
+            throw new MfaInvalidoException();
+        }
+        if (estado.estaUsado()) {
+            registrar(estado.usuarioId(), null, TipoIntento.MFA_REENVIO,
+                    ResultadoIntento.FALLIDO, "desafío MFA ya usado", contexto, ahora);
+            throw new MfaInvalidoException();
+        }
+        if (estado.estaBloqueado(ahora)) {
+            registrar(estado.usuarioId(), null, TipoIntento.MFA_REENVIO,
+                    ResultadoIntento.BLOQUEADO, "desafío MFA bloqueado", contexto, ahora);
+            throw new DemasiadasSolicitudesException(
+                    segundosHasta(ahora, estado.bloqueadoHasta()));
+        }
+        if (estado.reenvios() >= estado.maxReenvios()) {
+            registrar(estado.usuarioId(), null, TipoIntento.MFA_REENVIO,
+                    ResultadoIntento.LIMITADO, "máximo de reenvíos MFA", contexto, ahora);
+            throw new DemasiadasSolicitudesException(politica.reenvioEspera().toSeconds());
+        }
+        Instant disponibleEn = estado.ultimoEnvioEn().plus(politica.reenvioEspera());
+        registrar(estado.usuarioId(), null, TipoIntento.MFA_REENVIO,
+                ResultadoIntento.LIMITADO, "espera entre reenvíos MFA", contexto, ahora);
+        throw new DemasiadasSolicitudesException(segundosHasta(ahora, disponibleEn));
     }
 
     private ResultadoTokens emitirTokens(Usuario usuario, Instant ahora, UUID familiaId) {

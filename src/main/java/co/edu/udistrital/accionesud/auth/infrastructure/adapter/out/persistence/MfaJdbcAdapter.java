@@ -115,6 +115,28 @@ public class MfaJdbcAdapter implements MfaRepositoryPort {
                 .stream().findFirst();
     }
 
+    @Override
+    public Optional<DesafioMfa> reservarReenvio(String tokenHash, String codigoHash,
+                                                Instant expiraEn, Instant ahora,
+                                                Instant limiteUltimoEnvio) {
+        return jdbc.query("""
+                        UPDATE auth_mfa_desafio
+                        SET codigo_hash = ?, expira_en = ?, reenvios = reenvios + 1,
+                            ultimo_envio_en = ?
+                        WHERE token_hash = ?
+                          AND usado_en IS NULL
+                          AND (bloqueado_hasta IS NULL OR bloqueado_hasta <= ?)
+                          AND reenvios < max_reenvios
+                          AND (ultimo_envio_en IS NULL OR ultimo_envio_en <= ?)
+                        RETURNING id, usuario_id, token_hash, codigo_hash, canal, creado_en, expira_en,
+                                  intentos, max_intentos, bloqueado_hasta, reenvios, max_reenvios,
+                                  ultimo_envio_en, usado_en
+                        """,
+                MAPPER, codigoHash, timestamp(expiraEn), timestamp(ahora), tokenHash,
+                timestamp(ahora), timestamp(limiteUltimoEnvio))
+                .stream().findFirst();
+    }
+
     private static Instant instante(Timestamp timestamp) {
         return timestamp == null ? null : timestamp.toInstant();
     }

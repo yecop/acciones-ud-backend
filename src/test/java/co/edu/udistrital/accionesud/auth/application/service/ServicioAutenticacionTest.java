@@ -352,9 +352,32 @@ class ServicioAutenticacionTest {
     }
 
     @Test
+    void reenviarMfaReservaAtomicamenteYEnviaUnSoloCodigo() {
+        DesafioMfa desafio = desafio(AHORA.plusSeconds(300), 0, AHORA.minusSeconds(60));
+        DesafioMfa reservado = desafio.reenviado("hash:654321", AHORA.plusSeconds(300), AHORA);
+        when(hasheador.hash("mfa-token")).thenReturn("hash:mfa-token");
+        when(generadorCodigo.generar()).thenReturn("654321");
+        when(hasheador.hash("654321")).thenReturn("hash:654321");
+        when(desafios.reservarReenvio(eq("hash:mfa-token"), eq("hash:654321"),
+                eq(AHORA.plusSeconds(300)), eq(AHORA), eq(AHORA.minusSeconds(60))))
+                .thenReturn(Optional.of(reservado));
+        when(usuarios.buscarPorId(USUARIO_ID)).thenReturn(Optional.of(usuario));
+
+        servicio.reenviarMfa("mfa-token", contexto());
+
+        verify(notificador).enviarCodigo(CORREO, "654321", AHORA.plusSeconds(300));
+        verify(desafios, never()).actualizar(any());
+    }
+
+    @Test
     void reenviarMfaRespetaLaEsperaEntreEnvios() {
         DesafioMfa desafio = desafio(AHORA.plusSeconds(300), 0, AHORA.minusSeconds(10));
         when(hasheador.hash("mfa-token")).thenReturn("hash:mfa-token");
+        when(generadorCodigo.generar()).thenReturn("123456");
+        when(hasheador.hash("123456")).thenReturn("hash:123456");
+        when(desafios.reservarReenvio(eq("hash:mfa-token"), eq("hash:123456"),
+                eq(AHORA.plusSeconds(300)), eq(AHORA), eq(AHORA.minusSeconds(60))))
+                .thenReturn(Optional.empty());
         when(desafios.buscarPorTokenHash("hash:mfa-token")).thenReturn(Optional.of(desafio));
 
         assertThatThrownBy(() -> servicio.reenviarMfa("mfa-token", contexto()))
@@ -363,6 +386,26 @@ class ServicioAutenticacionTest {
                 .isEqualTo(50L);
 
         verify(notificador, never()).enviarCodigo(anyString(), anyString(), any());
+        verify(desafios, never()).actualizar(any());
+    }
+
+    @Test
+    void reenviarMfaRechazaCuandoLaReservacionSuperaElMaximo() {
+        DesafioMfa desafio = new DesafioMfa(UUID.randomUUID(), USUARIO_ID, "hash:mfa-token",
+                "hash:123456", CanalMfa.EMAIL, AHORA.minusSeconds(10), AHORA.plusSeconds(300),
+                0, 5, null, 3, 3, AHORA.minusSeconds(1), null);
+        when(hasheador.hash("mfa-token")).thenReturn("hash:mfa-token");
+        when(generadorCodigo.generar()).thenReturn("123456");
+        when(hasheador.hash("123456")).thenReturn("hash:123456");
+        when(desafios.reservarReenvio(anyString(), anyString(), any(), any(), any()))
+                .thenReturn(Optional.empty());
+        when(desafios.buscarPorTokenHash("hash:mfa-token")).thenReturn(Optional.of(desafio));
+
+        assertThatThrownBy(() -> servicio.reenviarMfa("mfa-token", contexto()))
+                .isInstanceOf(DemasiadasSolicitudesException.class);
+
+        verify(notificador, never()).enviarCodigo(anyString(), anyString(), any());
+        verify(desafios, never()).actualizar(any());
     }
 
     private DesafioMfa desafio(Instant expiraEn, int intentos, Instant ultimoEnvioEn) {
