@@ -80,6 +80,20 @@ public class MfaJdbcAdapter implements MfaRepositoryPort {
                 timestamp(desafio.ultimoEnvioEn()), timestamp(desafio.usadoEn()), desafio.id());
     }
 
+    @Override
+    public boolean consumir(String tokenHash, String codigoHash, Instant ahora) {
+        return jdbc.update("""
+                        UPDATE auth_mfa_desafio
+                        SET usado_en = ?
+                        WHERE token_hash = ?
+                          AND codigo_hash = ?
+                          AND usado_en IS NULL
+                          AND expira_en > ?
+                          AND (bloqueado_hasta IS NULL OR bloqueado_hasta <= ?)
+                        """,
+                timestamp(ahora), tokenHash, codigoHash, timestamp(ahora), timestamp(ahora)) == 1;
+    }
+
     private static Instant instante(Timestamp timestamp) {
         return timestamp == null ? null : timestamp.toInstant();
     }

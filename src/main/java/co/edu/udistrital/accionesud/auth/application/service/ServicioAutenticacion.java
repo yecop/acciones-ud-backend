@@ -150,7 +150,8 @@ public class ServicioAutenticacion implements
     @Override
     public ResultadoTokens verificarMfa(String mfaToken, String codigo, ContextoIntento contexto) {
         Instant ahora = reloj.ahora();
-        DesafioMfa desafio = desafios.buscarPorTokenHash(hasheador.hash(mfaToken))
+        String tokenHash = hasheador.hash(mfaToken);
+        DesafioMfa desafio = desafios.buscarPorTokenHash(tokenHash)
                 .orElseThrow(() -> {
                     registrar(null, null, TipoIntento.MFA_VERIFICACION, ResultadoIntento.FALLIDO,
                             "desafío MFA inexistente", contexto, ahora);
@@ -190,10 +191,16 @@ public class ServicioAutenticacion implements
             throw new MfaInvalidoException();
         }
 
-        desafios.actualizar(desafio.usado(ahora));
         Usuario usuario = usuarios.buscarPorId(desafio.usuarioId())
                 .filter(Usuario::activo)
                 .orElseThrow(CredencialesInvalidasException::new);
+
+        String codigoHash = hasheador.hash(codigo);
+        if (!desafios.consumir(tokenHash, codigoHash, ahora)) {
+            registrar(usuario.id(), null, TipoIntento.MFA_VERIFICACION,
+                    ResultadoIntento.FALLIDO, "desafío MFA consumido en paralelo", contexto, ahora);
+            throw new MfaInvalidoException();
+        }
 
         ResultadoTokens resultado = emitirTokens(usuario, ahora, UUID.randomUUID());
         registrar(usuario.id(), usuario.correo(), TipoIntento.MFA_VERIFICACION,

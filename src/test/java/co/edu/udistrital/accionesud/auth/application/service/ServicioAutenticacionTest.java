@@ -157,8 +157,10 @@ class ServicioAutenticacionTest {
     void verificarMfaValidoEmiteTokensYGuardaRefresh() {
         DesafioMfa desafio = desafio(AHORA.plusSeconds(300), 0, null);
         when(hasheador.hash("mfa-token")).thenReturn("hash:mfa-token");
+        when(hasheador.hash("123456")).thenReturn("hash:123456");
         when(hasheador.coincide("123456", "hash:123456")).thenReturn(true);
         when(desafios.buscarPorTokenHash("hash:mfa-token")).thenReturn(Optional.of(desafio));
+        when(desafios.consumir("hash:mfa-token", "hash:123456", AHORA)).thenReturn(true);
         when(usuarios.buscarPorId(USUARIO_ID)).thenReturn(Optional.of(usuario));
         when(tokenJwt.emitirAccessToken(usuario, AHORA)).thenReturn("access-token");
         when(tokenJwt.expiracionSegundos()).thenReturn(900L);
@@ -173,12 +175,51 @@ class ServicioAutenticacionTest {
         assertThat(resultado.expiraEn()).isEqualTo(900);
         assertThat(resultado.usuario()).isEqualTo(usuario);
 
-        verify(desafios).actualizar(desafio.usado(AHORA));
+        verify(desafios).consumir("hash:mfa-token", "hash:123456", AHORA);
         ArgumentCaptor<TokenRefresco> token = ArgumentCaptor.forClass(TokenRefresco.class);
         verify(refreshTokens).guardar(token.capture());
         assertThat(token.getValue().usuarioId()).isEqualTo(USUARIO_ID);
         assertThat(token.getValue().tokenHash()).isEqualTo("hash:refresh-token");
         assertThat(token.getValue().expiraEn()).isEqualTo(AHORA.plus(Duration.ofDays(7)));
+    }
+
+    @Test
+    void verificarMfaConsumidoEnParaleloNoEmiteTokens() {
+        DesafioMfa desafio = desafio(AHORA.plusSeconds(300), 0, null);
+        when(hasheador.hash("mfa-token")).thenReturn("hash:mfa-token");
+        when(hasheador.hash("123456")).thenReturn("hash:123456");
+        when(hasheador.coincide("123456", "hash:123456")).thenReturn(true);
+        when(desafios.buscarPorTokenHash("hash:mfa-token")).thenReturn(Optional.of(desafio));
+        when(usuarios.buscarPorId(USUARIO_ID)).thenReturn(Optional.of(usuario));
+        when(desafios.consumir("hash:mfa-token", "hash:123456", AHORA)).thenReturn(false);
+
+        assertThatThrownBy(() -> servicio.verificarMfa("mfa-token", "123456", contexto()))
+                .isInstanceOf(MfaInvalidoException.class);
+
+        verify(tokenJwt, never()).emitirAccessToken(any(), any());
+        verify(refreshTokens, never()).guardar(any());
+        ArgumentCaptor<RegistroIntento> intento = ArgumentCaptor.forClass(RegistroIntento.class);
+        verify(auditoria).registrar(intento.capture());
+        assertThat(intento.getValue().resultado()).isEqualTo(ResultadoIntento.FALLIDO);
+        assertThat(intento.getValue().motivo()).isEqualTo("desafío MFA consumido en paralelo");
+    }
+
+    @Test
+    void verificarMfaConUsuarioInactivoNoConsumeElDesafio() {
+        Usuario inactivo = new Usuario(USUARIO_ID, "Inversionista", CORREO, "{bcrypt}clave",
+                "INVERSIONISTA", false);
+        DesafioMfa desafio = desafio(AHORA.plusSeconds(300), 0, null);
+        when(hasheador.hash("mfa-token")).thenReturn("hash:mfa-token");
+        when(hasheador.coincide("123456", "hash:123456")).thenReturn(true);
+        when(desafios.buscarPorTokenHash("hash:mfa-token")).thenReturn(Optional.of(desafio));
+        when(usuarios.buscarPorId(USUARIO_ID)).thenReturn(Optional.of(inactivo));
+
+        assertThatThrownBy(() -> servicio.verificarMfa("mfa-token", "123456", contexto()))
+                .isInstanceOf(CredencialesInvalidasException.class);
+
+        verify(desafios, never()).consumir(anyString(), anyString(), any());
+        verify(tokenJwt, never()).emitirAccessToken(any(), any());
+        verify(refreshTokens, never()).guardar(any());
     }
 
     @Test
@@ -197,6 +238,7 @@ class ServicioAutenticacionTest {
         assertThat(actualizado.getValue().bloqueadoHasta()).isNull();
         verify(tokenJwt, never()).emitirAccessToken(any(), any());
         verify(refreshTokens, never()).guardar(any());
+        verify(desafios, never()).consumir(anyString(), anyString(), any());
     }
 
     @Test
@@ -209,6 +251,7 @@ class ServicioAutenticacionTest {
                 .isInstanceOf(MfaExpiradoException.class);
 
         verify(desafios, never()).actualizar(any());
+        verify(desafios, never()).consumir(anyString(), anyString(), any());
         verify(tokenJwt, never()).emitirAccessToken(any(), any());
     }
 
