@@ -131,6 +131,9 @@ no tienen dato). Los sufijos de simbolo por bolsa son configurables
   Internacionales: umbral `COTIZACIONES_INTERNACIONAL_UMBRAL_SEGUNDOS` (1800 s).
   La respuesta incluye `umbralAntiguedadSegundos` para que el frontend use el mismo valor.
 - Si el proveedor de un mercado falla se sirve el ultimo dato con advertencia `PROVEEDOR_NO_DISPONIBLE`.
+- El 502 incluye `Retry-After` (y `datos.reintentarEnSegundos`) con el intervalo del actualizador
+  del mercado de la accion: `COTIZACIONES_INTERVALO_MS` para NYSE/NASDAQ (5 s) y
+  `COTIZACIONES_INTERNACIONAL_INTERVALO_MS` para LSE/TSE/ASX (60 s).
 - Limitador de cuota por proveedor (Token Bucket + ventana movil): tope de diseno
   60 % del plan. Alpaca: 60 % de 200/min = 120/min. Alpha Vantage: 60 % de 5/min y
   de 25/dia. Finnhub: 60 % de 60/min. Polygon: 60 % de 5/min. Si se intenta superar,

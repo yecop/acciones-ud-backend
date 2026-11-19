@@ -297,6 +297,8 @@ class AccionesControllerIntegrationTest {
                 .andExpect(header().string("Retry-After", "5"))
                 .andExpect(jsonPath("$.status").value(502))
                 .andExpect(jsonPath("$.codigo").value("PROVEEDOR_NO_DISPONIBLE"))
+                .andExpect(jsonPath("$.datos.mercado").value("NASDAQ"))
+                .andExpect(jsonPath("$.datos.reintentarEnSegundos").value(5))
                 .andExpect(jsonPath("$.traceId").exists());
 
         // El catálogo sigue disponible aunque no haya cotizaciones.
@@ -304,6 +306,20 @@ class AccionesControllerIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.cotizacion").doesNotExist())
                 .andExpect(jsonPath("$.advertencia.codigo").value("SIN_COTIZACION"));
+    }
+
+    @Test
+    void elRetryAfterDeUnaAccionInternacionalSigueElIntervaloInternacional() throws Exception {
+        internacional.simularCaida(true);
+        actualizador.actualizarInternacionales();
+
+        // LSE se actualiza cada 60 s (por defecto): reintentar a los 5 s no traería datos nuevos.
+        mockMvc.perform(get("/api/v1/acciones/BP/cotizacion").with(inversionista()))
+                .andExpect(status().isBadGateway())
+                .andExpect(header().string("Retry-After", "60"))
+                .andExpect(jsonPath("$.codigo").value("PROVEEDOR_NO_DISPONIBLE"))
+                .andExpect(jsonPath("$.datos.mercado").value("LSE"))
+                .andExpect(jsonPath("$.datos.reintentarEnSegundos").value(60));
     }
 
     @Test

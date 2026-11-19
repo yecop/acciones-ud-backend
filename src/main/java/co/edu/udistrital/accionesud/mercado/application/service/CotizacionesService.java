@@ -194,7 +194,8 @@ public class CotizacionesService implements ConsultarAccionesUseCase, Actualizar
         Cotizacion cotizacion = cache.obtener(accion.ticker())
                 .orElseThrow(() -> new ProveedorNoDisponibleException(
                         "No hay cotización disponible para " + accion.ticker()
-                                + " y el proveedor de datos no ha entregado información."));
+                                + " y el proveedor de datos no ha entregado información.",
+                        accion.mercado()));
         return politica.evaluar(accion, cotizacion, reloj.ahora(), proveedorDisponible(accion.mercado()));
     }
 
