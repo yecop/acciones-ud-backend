@@ -177,15 +177,17 @@ public class ServicioAutenticacion implements
         }
 
         if (!hasheador.coincide(codigo, desafio.codigoHash())) {
-            int intentos = desafio.intentos() + 1;
-            if (intentos >= desafio.maxIntentos()) {
-                Instant bloqueo = ahora.plus(politica.mfaBloqueo());
-                desafios.actualizar(desafio.conIntentoFallido(intentos, bloqueo));
+            Instant bloqueo = ahora.plus(politica.mfaBloqueo());
+            Optional<DesafioMfa> actualizado =
+                    desafios.registrarIntentoFallido(tokenHash, ahora, bloqueo);
+            if (actualizado.isEmpty()) {
+                rechazarDesafioNoDisponible(tokenHash, ahora, contexto);
+            }
+            if (actualizado.get().estaBloqueado(ahora)) {
                 registrar(desafio.usuarioId(), null, TipoIntento.MFA_VERIFICACION,
                         ResultadoIntento.BLOQUEADO, "máximo de intentos MFA", contexto, ahora);
                 throw new DemasiadasSolicitudesException(politica.mfaBloqueo().toSeconds());
             }
-            desafios.actualizar(desafio.conIntentoFallido(intentos, null));
             registrar(desafio.usuarioId(), null, TipoIntento.MFA_VERIFICACION,
                     ResultadoIntento.FALLIDO, "código MFA incorrecto", contexto, ahora);
             throw new MfaInvalidoException();
@@ -302,6 +304,33 @@ public class ServicioAutenticacion implements
 
         registrar(usuarioId, null, TipoIntento.LOGOUT, ResultadoIntento.FALLIDO,
                 "refresh token no revocable", contexto, ahora);
+    }
+
+    private void rechazarDesafioNoDisponible(String tokenHash, Instant ahora,
+                                             ContextoIntento contexto) {
+        DesafioMfa estado = desafios.buscarPorTokenHash(tokenHash).orElse(null);
+        if (estado != null) {
+            if (estado.estaUsado()) {
+                registrar(estado.usuarioId(), null, TipoIntento.MFA_VERIFICACION,
+                        ResultadoIntento.FALLIDO, "desafío MFA consumido en paralelo",
+                        contexto, ahora);
+                throw new MfaInvalidoException();
+            }
+            if (estado.estaBloqueado(ahora)) {
+                registrar(estado.usuarioId(), null, TipoIntento.MFA_VERIFICACION,
+                        ResultadoIntento.BLOQUEADO, "desafío MFA bloqueado", contexto, ahora);
+                throw new DemasiadasSolicitudesException(
+                        segundosHasta(ahora, estado.bloqueadoHasta()));
+            }
+            if (estado.estaExpirado(ahora)) {
+                registrar(estado.usuarioId(), null, TipoIntento.MFA_VERIFICACION,
+                        ResultadoIntento.EXPIRADO, "código MFA expirado", contexto, ahora);
+                throw new MfaExpiradoException();
+            }
+        }
+        registrar(null, null, TipoIntento.MFA_VERIFICACION, ResultadoIntento.FALLIDO,
+                "desafío MFA no disponible", contexto, ahora);
+        throw new MfaInvalidoException();
     }
 
     private ResultadoTokens emitirTokens(Usuario usuario, Instant ahora, UUID familiaId) {

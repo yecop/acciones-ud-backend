@@ -14,4 +14,7 @@ public interface MfaRepositoryPort {
     void actualizar(DesafioMfa desafio);
 
     boolean consumir(String tokenHash, String codigoHash, Instant ahora);
+
+    Optional<DesafioMfa> registrarIntentoFallido(String tokenHash, Instant ahora,
+                                                 Instant bloqueoHasta);
 }

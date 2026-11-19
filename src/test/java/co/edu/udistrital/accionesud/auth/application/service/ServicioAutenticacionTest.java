@@ -225,20 +225,64 @@ class ServicioAutenticacionTest {
     @Test
     void verificarMfaIncorrectoIncrementaIntentosSinEmitirTokens() {
         DesafioMfa desafio = desafio(AHORA.plusSeconds(300), 1, null);
+        DesafioMfa actualizado = desafio.conIntentoFallido(2, null);
         when(hasheador.hash("mfa-token")).thenReturn("hash:mfa-token");
         when(hasheador.coincide("000000", "hash:123456")).thenReturn(false);
         when(desafios.buscarPorTokenHash("hash:mfa-token")).thenReturn(Optional.of(desafio));
+        when(desafios.registrarIntentoFallido("hash:mfa-token", AHORA,
+                AHORA.plusSeconds(900))).thenReturn(Optional.of(actualizado));
 
         assertThatThrownBy(() -> servicio.verificarMfa("mfa-token", "000000", contexto()))
                 .isInstanceOf(MfaInvalidoException.class);
 
-        ArgumentCaptor<DesafioMfa> actualizado = ArgumentCaptor.forClass(DesafioMfa.class);
-        verify(desafios).actualizar(actualizado.capture());
-        assertThat(actualizado.getValue().intentos()).isEqualTo(2);
-        assertThat(actualizado.getValue().bloqueadoHasta()).isNull();
+        verify(desafios).registrarIntentoFallido("hash:mfa-token", AHORA,
+                AHORA.plusSeconds(900));
+        verify(desafios, never()).actualizar(any());
         verify(tokenJwt, never()).emitirAccessToken(any(), any());
         verify(refreshTokens, never()).guardar(any());
         verify(desafios, never()).consumir(anyString(), anyString(), any());
+    }
+
+    @Test
+    void verificarMfaIncorrectoBloqueaAlLlegarAlMaximo() {
+        DesafioMfa desafio = desafio(AHORA.plusSeconds(300), 4, null);
+        Instant bloqueo = AHORA.plusSeconds(900);
+        DesafioMfa actualizado = desafio.conIntentoFallido(5, bloqueo);
+        when(hasheador.hash("mfa-token")).thenReturn("hash:mfa-token");
+        when(hasheador.coincide("000000", "hash:123456")).thenReturn(false);
+        when(desafios.buscarPorTokenHash("hash:mfa-token")).thenReturn(Optional.of(desafio));
+        when(desafios.registrarIntentoFallido("hash:mfa-token", AHORA, bloqueo))
+                .thenReturn(Optional.of(actualizado));
+
+        assertThatThrownBy(() -> servicio.verificarMfa("mfa-token", "000000", contexto()))
+                .isInstanceOf(DemasiadasSolicitudesException.class);
+
+        ArgumentCaptor<RegistroIntento> intento = ArgumentCaptor.forClass(RegistroIntento.class);
+        verify(auditoria).registrar(intento.capture());
+        assertThat(intento.getValue().resultado()).isEqualTo(ResultadoIntento.BLOQUEADO);
+        assertThat(intento.getValue().motivo()).isEqualTo("máximo de intentos MFA");
+        verify(desafios, never()).actualizar(any());
+        verify(desafios, never()).consumir(anyString(), anyString(), any());
+    }
+
+    @Test
+    void verificarMfaIncorrectoConcurrenteSinActualizacionUsaEstadoBloqueado() {
+        DesafioMfa desafio = desafio(AHORA.plusSeconds(300), 5, null);
+        DesafioMfa bloqueado = desafio.conIntentoFallido(5, AHORA.plusSeconds(900));
+        when(hasheador.hash("mfa-token")).thenReturn("hash:mfa-token");
+        when(hasheador.coincide("000000", "hash:123456")).thenReturn(false);
+        when(desafios.buscarPorTokenHash("hash:mfa-token"))
+                .thenReturn(Optional.of(desafio), Optional.of(bloqueado));
+        when(desafios.registrarIntentoFallido(anyString(), any(), any()))
+                .thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> servicio.verificarMfa("mfa-token", "000000", contexto()))
+                .isInstanceOf(DemasiadasSolicitudesException.class);
+
+        ArgumentCaptor<RegistroIntento> intento = ArgumentCaptor.forClass(RegistroIntento.class);
+        verify(auditoria).registrar(intento.capture());
+        assertThat(intento.getValue().resultado()).isEqualTo(ResultadoIntento.BLOQUEADO);
+        assertThat(intento.getValue().motivo()).isEqualTo("desafío MFA bloqueado");
     }
 
     @Test
@@ -251,6 +295,7 @@ class ServicioAutenticacionTest {
                 .isInstanceOf(MfaExpiradoException.class);
 
         verify(desafios, never()).actualizar(any());
+        verify(desafios, never()).registrarIntentoFallido(anyString(), any(), any());
         verify(desafios, never()).consumir(anyString(), anyString(), any());
         verify(tokenJwt, never()).emitirAccessToken(any(), any());
     }

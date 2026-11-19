@@ -24,6 +24,7 @@ import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.Callable;
@@ -296,8 +297,99 @@ class AuthIntegrationTest {
         }
     }
 
+    @Test
+    @Timeout(60)
+    void verificarMfaConcurrenteCodigosIncorrectosNoSuperaElMaximoDeIntentos() throws Exception {
+        MvcResult login = mockMvc.perform(post("/api/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"correo\":\"" + CORREO + "\",\"contrasena\":\"" + CLAVE + "\"}"))
+                .andExpect(status().isOk())
+                .andReturn();
+        String mfaToken = json(login).get("mfaToken").asText();
+        String codigo = ultimoCodigoEnviado();
+        String codigoIncorrecto = "000000".equals(codigo) ? "999999" : "000000";
+        String tokenHash = hasheador.hash(mfaToken);
+
+        Integer intentosAntes = jdbc.queryForObject(
+                "SELECT intentos FROM auth_mfa_desafio WHERE token_hash = ?",
+                Integer.class, tokenHash);
+        Integer fallidosAntes = contarIntentos("FALLIDO", "código MFA incorrecto");
+        Integer maximosAntes = contarIntentos("BLOQUEADO", "máximo de intentos MFA");
+        Integer bloqueadosAntes = contarIntentos("BLOQUEADO", "desafío MFA bloqueado");
+
+        int concurrentes = 8;
+        ExecutorService executor = Executors.newFixedThreadPool(concurrentes);
+        CountDownLatch salida = new CountDownLatch(1);
+        CyclicBarrier barrera = new CyclicBarrier(concurrentes);
+        doAnswer(invocation -> {
+            boolean coincide = Boolean.TRUE.equals(invocation.callRealMethod());
+            barrera.await(30, TimeUnit.SECONDS);
+            return coincide;
+        }).when(hasheador).coincide(anyString(), anyString());
+
+        Callable<Respuesta> peticion = () -> {
+            salida.await(30, TimeUnit.SECONDS);
+            MvcResult resultado = mockMvc.perform(post("/api/v1/auth/mfa/verificar")
+                            .header("X-Trace-Id", UUID.randomUUID().toString())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"mfaToken\":\"" + mfaToken + "\",\"codigo\":\""
+                                    + codigoIncorrecto + "\"}"))
+                    .andReturn();
+            return new Respuesta(resultado.getResponse().getStatus(),
+                    resultado.getResponse().getContentAsString());
+        };
+
+        try {
+            List<Future<Respuesta>> futuros = new ArrayList<>();
+            for (int i = 0; i < concurrentes; i++) {
+                futuros.add(executor.submit(peticion));
+            }
+            salida.countDown();
+
+            List<Respuesta> respuestas = new ArrayList<>();
+            for (Future<Respuesta> futuro : futuros) {
+                respuestas.add(futuro.get(30, TimeUnit.SECONDS));
+            }
+
+            assertThat(respuestas).extracting(Respuesta::status)
+                    .containsExactlyInAnyOrder(401, 401, 401, 401, 401, 429, 429, 429);
+            assertThat(respuestas).filteredOn(respuesta -> respuesta.status() == 401)
+                    .allSatisfy(respuesta -> assertThat(respuesta.cuerpo())
+                            .contains("\"codigo\":\"MFA_INVALIDO\""));
+            assertThat(respuestas).filteredOn(respuesta -> respuesta.status() == 429)
+                    .allSatisfy(respuesta -> assertThat(respuesta.cuerpo())
+                            .contains("\"codigo\":\"DEMASIADAS_SOLICITUDES\""));
+
+            Integer intentosDespues = jdbc.queryForObject(
+                    "SELECT intentos FROM auth_mfa_desafio WHERE token_hash = ?",
+                    Integer.class, tokenHash);
+            Boolean bloqueado = jdbc.queryForObject(
+                    "SELECT bloqueado_hasta IS NOT NULL FROM auth_mfa_desafio WHERE token_hash = ?",
+                    Boolean.class, tokenHash);
+
+            assertThat(intentosDespues).isEqualTo(intentosAntes + 5);
+            assertThat(bloqueado).isTrue();
+            assertThat(contarIntentos("FALLIDO", "código MFA incorrecto") - fallidosAntes)
+                    .isEqualTo(4);
+            assertThat(contarIntentos("BLOQUEADO", "máximo de intentos MFA") - maximosAntes)
+                    .isEqualTo(1);
+            assertThat(contarIntentos("BLOQUEADO", "desafío MFA bloqueado") - bloqueadosAntes)
+                    .isEqualTo(3);
+        } finally {
+            executor.shutdownNow();
+            Mockito.doCallRealMethod().when(hasheador).coincide(anyString(), anyString());
+        }
+    }
+
     private JsonNode json(MvcResult result) throws Exception {
         return objectMapper.readTree(result.getResponse().getContentAsString());
+    }
+
+    private Integer contarIntentos(String resultado, String motivo) {
+        return jdbc.queryForObject(
+                "SELECT count(*) FROM auth_intento WHERE tipo = 'MFA_VERIFICACION' "
+                        + "AND resultado = ? AND motivo = ?",
+                Integer.class, resultado, motivo);
     }
 
     private String ultimoCodigoEnviado() {

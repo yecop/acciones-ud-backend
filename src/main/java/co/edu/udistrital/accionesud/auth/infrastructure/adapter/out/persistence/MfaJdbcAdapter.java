@@ -94,6 +94,27 @@ public class MfaJdbcAdapter implements MfaRepositoryPort {
                 timestamp(ahora), tokenHash, codigoHash, timestamp(ahora), timestamp(ahora)) == 1;
     }
 
+    @Override
+    public Optional<DesafioMfa> registrarIntentoFallido(String tokenHash, Instant ahora,
+                                                        Instant bloqueoHasta) {
+        return jdbc.query("""
+                        UPDATE auth_mfa_desafio
+                        SET intentos = CASE WHEN intentos >= max_intentos
+                                            THEN max_intentos ELSE intentos + 1 END,
+                            bloqueado_hasta = CASE WHEN intentos + 1 >= max_intentos
+                                                   THEN ? ELSE bloqueado_hasta END
+                        WHERE token_hash = ?
+                          AND usado_en IS NULL
+                          AND expira_en > ?
+                          AND (bloqueado_hasta IS NULL OR bloqueado_hasta <= ?)
+                        RETURNING id, usuario_id, token_hash, codigo_hash, canal, creado_en, expira_en,
+                                  intentos, max_intentos, bloqueado_hasta, reenvios, max_reenvios,
+                                  ultimo_envio_en, usado_en
+                        """,
+                MAPPER, timestamp(bloqueoHasta), tokenHash, timestamp(ahora), timestamp(ahora))
+                .stream().findFirst();
+    }
+
     private static Instant instante(Timestamp timestamp) {
         return timestamp == null ? null : timestamp.toInstant();
     }
