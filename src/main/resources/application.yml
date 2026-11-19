@@ -10,6 +10,14 @@ spring:
   mvc:
     problemdetails:
       enabled: false
+  # SCRUM-24: Redis guarda la caché de cotizaciones por ticker (ver docker-compose.yml).
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      timeout: ${REDIS_TIMEOUT:2s}
+      connect-timeout: ${REDIS_CONNECT_TIMEOUT:2s}
 
 server:
   port: ${SERVER_PORT:8080}
@@ -71,13 +79,41 @@ accionesud:
         api-key: ${ALPACA_API_KEY:}
         api-secret: ${ALPACA_API_SECRET:}
         base-url: ${ALPACA_BASE_URL:https://paper-api.alpaca.markets}
+        # API de datos de mercado (snapshots agrupados) y feed del plan gratuito.
+        data-url: ${ALPACA_DATA_URL:https://data.alpaca.markets}
+        feed: ${ALPACA_FEED:iex}
+        # Limitador de cuota (SCRUM-24): tope de diseño = porcentaje-tope % del límite del plan.
+        limite-llamadas-por-minuto: ${ALPACA_LIMITE_LLAMADAS_MINUTO:200}
+        porcentaje-tope: ${ALPACA_PORCENTAJE_TOPE:60}
       alpha-vantage:
         api-key: ${ALPHA_VANTAGE_API_KEY:}
         base-url: ${ALPHA_VANTAGE_BASE_URL:https://www.alphavantage.co}
+        limite-llamadas-por-minuto: ${ALPHA_VANTAGE_LIMITE_LLAMADAS_MINUTO:5}
+        limite-llamadas-por-dia: ${ALPHA_VANTAGE_LIMITE_LLAMADAS_DIA:25}
       finnhub:
         api-key: ${FINNHUB_API_KEY:}
+        limite-llamadas-por-minuto: ${FINNHUB_LIMITE_LLAMADAS_MINUTO:60}
       polygon:
         api-key: ${POLYGON_API_KEY:}
+        limite-llamadas-por-minuto: ${POLYGON_LIMITE_LLAMADAS_MINUTO:5}
+    # Servicio de Datos de Mercado (SCRUM-24): un único actualizador consulta a Alpaca
+    # (una llamada agrupada cada intervalo-ms) y los endpoints leen siempre de la caché.
+    cotizaciones:
+      intervalo-ms: ${COTIZACIONES_INTERVALO_MS:5000}
+      umbral-antiguedad-segundos: ${COTIZACIONES_UMBRAL_ANTIGUEDAD_SEGUNDOS:15}
+      actualizador-habilitado: ${COTIZACIONES_ACTUALIZADOR_HABILITADO:true}
+      # LSE, TSE y ASX: Alpha Vantage -> Finnhub -> Polygon, un ticker por ciclo
+      # (el que lleva mas tiempo sin actualizarse) por los limites de los planes gratuitos.
+      internacional:
+        intervalo-ms: ${COTIZACIONES_INTERNACIONAL_INTERVALO_MS:60000}
+        umbral-antiguedad-segundos: ${COTIZACIONES_INTERNACIONAL_UMBRAL_SEGUNDOS:1800}
+        tickers-por-ciclo: ${COTIZACIONES_INTERNACIONAL_TICKERS_POR_CICLO:1}
+        porcentaje-tope: ${COTIZACIONES_INTERNACIONAL_PORCENTAJE_TOPE:60}
+      cache:
+        # redis (por defecto) | memoria (sin Redis, solo desarrollo/pruebas)
+        tipo: ${COTIZACIONES_CACHE_TIPO:redis}
+        prefijo: "accionesud:cotizacion:"
+        ttl-horas: ${COTIZACIONES_CACHE_TTL_HORAS:168}
     # Lista de feriados configurable por mercado (fecha en formato ISO yyyy-MM-dd).
     # Permite administrar cierres por feriado sin modificar el código de dominio.
     feriados:
@@ -99,3 +135,24 @@ accionesud:
       - mercado: ASX
         fecha: 2026-01-26
         descripcion: "Australia Day"
+
+---
+# SCRUM-24: en las pruebas, caché de cotizaciones en memoria y actualizador apagado
+# (las pruebas ejecutan los ciclos a mano). Se define aquí, y no en application-test.yml,
+# para no chocar con otras ramas que modifican ese archivo.
+spring:
+  config:
+    activate:
+      on-profile: test
+
+accionesud:
+  mercados:
+    cotizaciones:
+      actualizador-habilitado: false
+      cache:
+        tipo: memoria
+
+management:
+  health:
+    redis:
+      enabled: false
