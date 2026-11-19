@@ -19,9 +19,3 @@ management:
     web:
       exposure:
         include: health,info
-
-accionesud:
-  security:
-    usuario: ${ACCIONESUD_SECURITY_USUARIO:}
-    clave: ${ACCIONESUD_SECURITY_CLAVE:}
-    roles: ${ACCIONESUD_SECURITY_ROLES:}

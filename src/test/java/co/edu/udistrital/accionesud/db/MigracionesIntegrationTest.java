@@ -19,7 +19,7 @@ import java.util.UUID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-@Testcontainers
+@Testcontainers(disabledWithoutDocker = true)
 class MigracionesIntegrationTest {
 
     @Container

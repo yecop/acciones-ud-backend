@@ -7,10 +7,15 @@ public enum CodigoError {
     SOLICITUD_INVALIDA(HttpStatus.BAD_REQUEST, "La solicitud no es válida"),
     ERROR_VALIDACION(HttpStatus.BAD_REQUEST, "Uno o más campos no son válidos"),
     NO_AUTENTICADO(HttpStatus.UNAUTHORIZED, "Se requiere autenticación"),
+    TOKEN_EXPIRADO(HttpStatus.UNAUTHORIZED, "El token de acceso venció"),
+    CREDENCIALES_INVALIDAS(HttpStatus.UNAUTHORIZED, "Credenciales inválidas"),
+    MFA_INVALIDO(HttpStatus.UNAUTHORIZED, "Código de verificación inválido"),
     ACCESO_DENEGADO(HttpStatus.FORBIDDEN, "No tiene permisos para realizar esta operación"),
     RECURSO_NO_ENCONTRADO(HttpStatus.NOT_FOUND, "No se encontró el recurso solicitado"),
     METODO_NO_PERMITIDO(HttpStatus.METHOD_NOT_ALLOWED, "El método HTTP no está permitido"),
+    MFA_EXPIRADO(HttpStatus.GONE, "El código de verificación venció"),
     TIPO_CONTENIDO_NO_SOPORTADO(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "El tipo de contenido no es soportado"),
+    DEMASIADAS_SOLICITUDES(HttpStatus.TOO_MANY_REQUESTS, "Límite de solicitudes superado"),
     ERROR_INTERNO(HttpStatus.INTERNAL_SERVER_ERROR, "Ocurrió un error interno");
 
     private final HttpStatus status;
@@ -36,7 +41,9 @@ public enum CodigoError {
             case 403 -> ACCESO_DENEGADO;
             case 404 -> RECURSO_NO_ENCONTRADO;
             case 405 -> METODO_NO_PERMITIDO;
+            case 410 -> MFA_EXPIRADO;
             case 415 -> TIPO_CONTENIDO_NO_SOPORTADO;
+            case 429 -> DEMASIADAS_SOLICITUDES;
             default -> status.is4xxClientError() ? SOLICITUD_INVALIDA : ERROR_INTERNO;
         };
     }

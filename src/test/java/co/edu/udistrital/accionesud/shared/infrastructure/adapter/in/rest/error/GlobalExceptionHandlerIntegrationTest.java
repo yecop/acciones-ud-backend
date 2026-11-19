@@ -1,5 +1,6 @@
 package co.edu.udistrital.accionesud.shared.infrastructure.adapter.in.rest.error;
 
+import co.edu.udistrital.accionesud.auth.infrastructure.config.AuthProperties;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
@@ -7,6 +8,12 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
+import org.springframework.security.oauth2.jwt.JwsHeader;
+import org.springframework.security.oauth2.jwt.JwtClaimsSet;
+import org.springframework.security.oauth2.jwt.JwtEncoder;
+import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
@@ -17,7 +24,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
@@ -28,21 +35,24 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @ActiveProfiles("test")
 class GlobalExceptionHandlerIntegrationTest {
 
-    private static final String USUARIO = "usuario-test";
-    private static final String CLAVE = "clave-test";
-
     @Autowired
     private MockMvc mockMvc;
 
     @Autowired
     private ObjectMapper objectMapper;
 
+    @Autowired
+    private JwtEncoder jwtEncoder;
+
+    @Autowired
+    private AuthProperties authProperties;
+
     @Test
     void responde400ConErroresDeValidacion() throws Exception {
         String traceId = UUID.randomUUID().toString();
 
         MvcResult result = mockMvc.perform(post("/api/v1/test/validacion")
-                        .with(httpBasic(USUARIO, CLAVE))
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_INVERSIONISTA")))
                         .header("X-Trace-Id", traceId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"nombre\":\"\",\"cantidad\":0}"))
@@ -67,9 +77,32 @@ class GlobalExceptionHandlerIntegrationTest {
     }
 
     @Test
+    void responde401ConTokenExpirado() throws Exception {
+        Instant expiracion = Instant.now().minusSeconds(60);
+        JwtClaimsSet claims = JwtClaimsSet.builder()
+                .issuer(authProperties.getJwt().getEmisor())
+                .subject(UUID.randomUUID().toString())
+                .issuedAt(expiracion.minusSeconds(900))
+                .expiresAt(expiracion)
+                .claim("rol", "INVERSIONISTA")
+                .build();
+        String token = jwtEncoder.encode(JwtEncoderParameters.from(
+                        JwsHeader.with(MacAlgorithm.HS256).build(), claims))
+                .getTokenValue();
+
+        MvcResult result = mockMvc.perform(get("/api/v1/test/trace")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isUnauthorized())
+                .andExpect(header().exists("WWW-Authenticate"))
+                .andReturn();
+
+        verificarContrato(result, 401, "TOKEN_EXPIRADO", "/api/v1/test/trace");
+    }
+
+    @Test
     void responde403CuandoElRolNoAlcanza() throws Exception {
         MvcResult result = mockMvc.perform(get("/api/v1/admin/ping")
-                        .with(httpBasic(USUARIO, CLAVE)))
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_INVERSIONISTA"))))
                 .andExpect(status().isForbidden())
                 .andReturn();
 
@@ -79,7 +112,7 @@ class GlobalExceptionHandlerIntegrationTest {
     @Test
     void responde404CuandoLaRutaNoExiste() throws Exception {
         MvcResult result = mockMvc.perform(get("/api/v1/no-existe")
-                        .with(httpBasic(USUARIO, CLAVE)))
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_INVERSIONISTA"))))
                 .andExpect(status().isNotFound())
                 .andReturn();
 
@@ -89,7 +122,7 @@ class GlobalExceptionHandlerIntegrationTest {
     @Test
     void responde500SinExponerDetalleInterno() throws Exception {
         MvcResult result = mockMvc.perform(get("/api/v1/test/error")
-                        .with(httpBasic(USUARIO, CLAVE)))
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_INVERSIONISTA"))))
                 .andExpect(status().isInternalServerError())
                 .andReturn();
 

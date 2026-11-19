@@ -18,8 +18,6 @@ logging:
     co.edu.udistrital.accionesud: INFO
 
 accionesud:
-  security:
-    # Credenciales fijas para que las pruebas no dependan del entorno local.
-    usuario: usuario-test
-    clave: clave-test
-    roles: INVERSIONISTA
+  auth:
+    jwt:
+      secreto: ${AUTH_JWT_SECRET:test-secreto-jwt-acciones-ud-2026-32bytes-minimo}

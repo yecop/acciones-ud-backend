@@ -3,6 +3,15 @@ spring:
     activate:
       on-profile: dev
   # --- nuevo ---
+  mail:
+    host: ${MAIL_HOST:localhost}
+    port: ${MAIL_PORT:1025}
+    properties:
+      mail:
+        smtp:
+          auth: false
+          starttls:
+            enable: false
   datasource:
     url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/${POSTGRES_DB:acciones_ud}
     username: ${POSTGRES_USER:acciones}
@@ -18,7 +27,6 @@ logging:
     co.edu.udistrital.accionesud: DEBUG
 
 accionesud:
-  security:
-    usuario: ${ACCIONESUD_SECURITY_USUARIO:usuario-dev}
-    clave: ${ACCIONESUD_SECURITY_CLAVE:clave-dev}
-    roles: ${ACCIONESUD_SECURITY_ROLES:INVERSIONISTA}
+  auth:
+    jwt:
+      secreto: ${AUTH_JWT_SECRET:dev-secreto-jwt-acciones-ud-2026-32bytes-minimo}

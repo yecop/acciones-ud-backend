@@ -9,7 +9,6 @@ import co.edu.udistrital.accionesud.auth.application.service.RegistroService;
 import co.edu.udistrital.accionesud.auth.infrastructure.adapter.in.scheduler.AltaPendienteScheduler;
 import co.edu.udistrital.accionesud.auth.infrastructure.adapter.out.audit.AuditoriaLogAdapter;
 import co.edu.udistrital.accionesud.auth.infrastructure.adapter.out.broker.AlpacaBrokerAdapter;
-import co.edu.udistrital.accionesud.auth.infrastructure.adapter.out.persistence.UsuarioJdbcRepository;
 import co.edu.udistrital.accionesud.auth.infrastructure.adapter.out.security.PasswordEncoderHashAdapter;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -17,7 +16,6 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.client.RestClient;
@@ -35,11 +33,6 @@ public class AuthBeansConfig {
     public RegistroService registroService(UsuarioRepositoryPort usuarios, HashContrasenaPort hash,
                                            BrokerPort broker, AuditoriaPort auditoria) {
         return new RegistroService(usuarios, hash, broker, auditoria);
-    }
-
-    @Bean
-    public UsuarioRepositoryPort usuarioRepositoryPort(JdbcTemplate jdbc) {
-        return new UsuarioJdbcRepository(jdbc);
     }
 
     @Bean
