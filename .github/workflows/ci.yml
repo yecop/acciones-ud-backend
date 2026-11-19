@@ -15,7 +15,6 @@ jobs:
   build:
     name: Build y pruebas
     runs-on: ubuntu-latest
-    if: ${{ hashFiles('pom.xml') != '' }}
 
     steps:
       - name: Checkout
