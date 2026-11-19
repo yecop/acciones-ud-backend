@@ -1,5 +1,10 @@
 package co.edu.udistrital.accionesud.mercado.infrastructure.adapter.out.proveedor.internacional;
 
+import co.edu.udistrital.accionesud.mercado.domain.model.Cotizacion;
+import java.math.BigDecimal;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import co.edu.udistrital.accionesud.mercado.domain.model.CodigoMercado;
 import co.edu.udistrital.accionesud.mercado.domain.port.out.ProveedorDatosMercadoPort.EstadoReportado;
 import co.edu.udistrital.accionesud.mercado.infrastructure.adapter.out.proveedor.http.MercadoHttpClient;
@@ -21,7 +26,6 @@ import java.util.Optional;
 @Component
 public class PolygonProveedor implements ProveedorInternacional {
 
-    private static final String BASE_URL = "https://api.polygon.io";
 
     private final MercadosProperties.Polygon config;
     private final MercadoHttpClient httpClient;
@@ -46,7 +50,7 @@ public class PolygonProveedor implements ProveedorInternacional {
         if (!estaDisponible()) {
             return Optional.empty();
         }
-        String url = BASE_URL + "/v1/marketstatus/now?apiKey=" + config.getApiKey();
+        String url = config.getBaseUrl() + "/v1/marketstatus/now?apiKey=" + config.getApiKey();
 
         return httpClient.getJson(url, Map.of())
                 .flatMap(this::estadoGlobal);
@@ -61,5 +65,41 @@ public class PolygonProveedor implements ProveedorInternacional {
         String estado = market.asText().trim();
         boolean abierto = "open".equalsIgnoreCase(estado) || "extended-hours".equalsIgnoreCase(estado);
         return Optional.of(new EstadoReportado(abierto, "Polygon: " + estado));
+    }
+
+    /**
+     * {@code GET /v2/aggs/ticker/{simbolo}/prev}: cierre y volumen de la sesión anterior.
+     * Su cobertura fuera de EE. UU. es limitada; es el último respaldo de la cadena.
+     */
+    @Override
+    public Optional<Cotizacion> cotizar(String simbolo, String ticker, Instant recibidoEn) {
+        if (!estaDisponible()) {
+            return Optional.empty();
+        }
+        String url = config.getBaseUrl() + "/v2/aggs/ticker/"
+                + URLEncoder.encode(simbolo, StandardCharsets.UTF_8) + "/prev?adjusted=true&apiKey="
+                + config.getApiKey();
+        return httpClient.getJsonSinCache(url, Map.of())
+                .map(json -> json.path("results").path(0))
+                .flatMap(barra -> {
+                    BigDecimal precio = decimal(barra.path("c"));
+                    if (precio == null) {
+                        return Optional.empty();
+                    }
+                    return Optional.of(Cotizacion.de(ticker, precio, null, null,
+                            barra.path("v").asLong(0), recibidoEn, nombre()));
+                });
+    }
+
+    private static BigDecimal decimal(JsonNode nodo) {
+        if (nodo == null || nodo.isMissingNode() || nodo.isNull()) {
+            return null;
+        }
+        try {
+            BigDecimal valor = new BigDecimal(nodo.asText().trim());
+            return valor.signum() > 0 ? valor : null;
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 }
