@@ -109,6 +109,10 @@ La aplicacion queda en `http://localhost:8080`.
 | POST | `/api/v1/auth/refresh` | rota el refresh token |
 | POST | `/api/v1/auth/logout` | revoca la sesión autenticada |
 | POST | `/api/v1/admin/altas/reintentar` | reintenta altas pendientes (rol ADMIN) |
+| GET | `/api/v1/perfil` | datos del inversionista autenticado (rol INVERSIONISTA) |
+| PATCH | `/api/v1/perfil` | actualiza datos del perfil de forma parcial |
+| GET | `/api/v1/perfil/preferencias` | preferencias operativas (valores por defecto si no se han guardado) |
+| PUT | `/api/v1/perfil/preferencias` | reemplaza las preferencias |
 
 ## Datos de mercado con cache (SCRUM-24)
 

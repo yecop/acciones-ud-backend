@@ -25,6 +25,8 @@ import org.springframework.web.servlet.NoHandlerFoundException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 import co.edu.udistrital.accionesud.shared.domain.exception.ConflictoException;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import co.edu.udistrital.accionesud.shared.domain.exception.ValidacionException;
+import com.fasterxml.jackson.databind.exc.InvalidFormatException;
 
 import java.util.List;
 import java.util.Map;
@@ -104,6 +106,13 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ErrorResponse> manejarCuerpoIlegible(HttpMessageNotReadableException ex,
                                                                HttpServletRequest request) {
+        if (ex.getCause() instanceof InvalidFormatException formato && !formato.getPath().isEmpty()) {
+            String campo = rutaCampo(formato);
+            String mensaje = "valor no permitido";
+            return respuesta(HttpStatus.BAD_REQUEST, CodigoError.ERROR_VALIDACION,
+                    List.of(campo + ": " + mensaje),
+                    Map.of("campos", List.of(Map.of("campo", campo, "mensaje", mensaje))), request);
+        }
         return respuesta(HttpStatus.BAD_REQUEST, CodigoError.SOLICITUD_INVALIDA,
                 List.of("El cuerpo no es un JSON válido o contiene valores no permitidos"),
                 Map.of(), request);
@@ -133,6 +142,19 @@ public class GlobalExceptionHandler {
         CodigoError codigo = CodigoError.desdeStatus(status);
         String mensaje = ex.getReason() != null ? ex.getReason() : codigo.getMensaje();
         return respuesta(status, codigo.name(), mensaje, List.of(), Map.of(), request);
+    }
+
+        @ExceptionHandler(ValidacionException.class)
+    public ResponseEntity<ErrorResponse> manejarValidacionDominio(ValidacionException ex,
+                                                                  HttpServletRequest request) {
+        List<String> detalles = ex.getErrores().stream()
+                .map(error -> error.campo() + ": " + error.mensaje())
+                .toList();
+        List<Map<String, String>> campos = ex.getErrores().stream()
+                .map(error -> Map.of("campo", error.campo(), "mensaje", error.mensaje()))
+                .toList();
+        return respuesta(HttpStatus.BAD_REQUEST, CodigoError.ERROR_VALIDACION,
+                detalles, Map.of("campos", campos), request);
     }
 
     @ExceptionHandler(DomainException.class)
@@ -185,5 +207,20 @@ public class GlobalExceptionHandler {
 
     private String mensaje(String valor) {
         return Objects.requireNonNullElse(valor, "valor inválido");
+    }
+    
+    private String rutaCampo(InvalidFormatException ex) {
+        StringBuilder ruta = new StringBuilder();
+        for (var ref : ex.getPath()) {
+            if (ref.getFieldName() != null) {
+                if (ruta.length() > 0) {
+                    ruta.append('.');
+                }
+                ruta.append(ref.getFieldName());
+            } else {
+                ruta.append('[').append(ref.getIndex()).append(']');
+            }
+        }
+        return ruta.toString();
     }
 }
