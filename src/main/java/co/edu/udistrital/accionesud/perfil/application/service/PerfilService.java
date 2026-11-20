@@ -40,9 +40,8 @@ public class PerfilService implements IdentificarUsuarioUseCase, ConsultarPerfil
 
     @Override
     public PerfilUsuario actualizarPerfil(UUID usuarioId, ActualizarPerfilCommand comando) {
-        consultarPerfil(usuarioId);
-        repositorio.actualizarPerfil(usuarioId, comando);
-        return consultarPerfil(usuarioId);
+        return repositorio.actualizarPerfil(usuarioId, comando)
+                .orElseThrow(PerfilNoEncontradoException::new);
     }
 
     @Override

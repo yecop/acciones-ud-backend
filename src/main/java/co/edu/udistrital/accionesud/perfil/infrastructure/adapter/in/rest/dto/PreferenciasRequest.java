@@ -14,6 +14,11 @@ import jakarta.validation.constraints.Pattern;
 import java.math.BigDecimal;
 import java.util.Set;
 
+/**
+ * Solicitud de reemplazo integral de las preferencias del inversionista.
+ * Los canales deben contener al menos un valor; los eventos pueden estar vacíos.
+ * Los elementos nulos no son válidos.
+ */
 public record PreferenciasRequest(
         @NotNull TipoVisualizacion tipoVisualizacion,
         @NotNull OrdenPortafolio ordenPredeterminado,
@@ -24,8 +29,8 @@ public record PreferenciasRequest(
         @Pattern(regexp = "^\\d{1,16}(\\.\\d{1,2})?$",
                 message = "debe ser un monto con máximo 2 decimales") String umbralOrdenGrande,
         @NotNull Boolean reporteMensual,
-        @NotEmpty Set<CanalNotificacion> canales,
-        @NotNull Set<EventoNotificacion> eventos) {
+        @NotEmpty Set<@NotNull CanalNotificacion> canales,
+        @NotNull Set<@NotNull EventoNotificacion> eventos) {
 
     public PreferenciasPerfil aDominio() {
         return new PreferenciasPerfil(

@@ -8,7 +8,11 @@ import jakarta.validation.constraints.Size;
 
 import java.util.Set;
 
-/** Todos los campos son opcionales: los que no se envían no cambian. */
+/**
+ * Actualización parcial del perfil. Los campos {@code null} se ignoran; enviar
+ * una lista vacía en {@code mercados} o {@code sectores} elimina los intereses
+ * existentes para esa categoría.
+ */
 public record ActualizarPerfilRequest(
         @Size(min = 1, max = 120)
         @Pattern(regexp = ".*\\S.*", message = "no puede estar vacío") String nombres,
@@ -17,8 +21,8 @@ public record ActualizarPerfilRequest(
         @Pattern(regexp = "^\\+?[0-9]{7,15}$", message = "formato de celular inválido") String celular,
         NivelRiesgo nivelRiesgo,
         @Size(max = 500) String objetivos,
-        @Size(min = 1, message = "debe incluir al menos un mercado") Set<@NotBlank String> mercados,
-        @Size(min = 1, message = "debe incluir al menos un sector") Set<@NotBlank String> sectores) {
+        Set<@NotBlank String> mercados,
+        Set<@NotBlank String> sectores) {
 
     public ActualizarPerfilCommand aComando() {
         return new ActualizarPerfilCommand(limpiar(nombres), limpiar(apellidos), celular,

@@ -15,7 +15,7 @@ public interface PerfilRepositoryPort {
 
     Optional<PerfilUsuario> buscarPerfil(UUID usuarioId);
 
-    void actualizarPerfil(UUID usuarioId, ActualizarPerfilCommand comando);
+    Optional<PerfilUsuario> actualizarPerfil(UUID usuarioId, ActualizarPerfilCommand comando);
 
     Optional<PreferenciasPerfil> buscarPreferencias(UUID usuarioId);
 

@@ -180,4 +180,27 @@ class RegistroIntegrationTest {
                 .andExpect(jsonPath("$.datos.campos[?(@.campo == 'contrasena')]").exists())
                 .andExpect(jsonPath("$.datos.campos[?(@.campo == 'mayorDeEdad')]").exists());
     }
+
+    @Test
+    void enumInvalidoEnRegistroConservaCodigoDeSolicitudInvalida() throws Exception {
+        String body = json(correoUnico())
+                .replace("\"nivelExperiencia\": \"PRINCIPIANTE\"", "\"nivelExperiencia\": \"DESCONOCIDO\"");
+
+        mockMvc.perform(post("/api/v1/auth/registro")
+                        .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.codigo").value("SOLICITUD_INVALIDA"))
+                .andExpect(jsonPath("$.traceId").exists());
+    }
+
+    @Test
+    void interesInexistenteEnRegistroConservaCodigoDeContrato() throws Exception {
+        String body = json(correoUnico()).replace("\"NASDAQ\"", "\"MERCADO_DESCONOCIDO\"");
+
+        mockMvc.perform(post("/api/v1/auth/registro")
+                        .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.codigo").value("INTERES_NO_VALIDO"))
+                .andExpect(jsonPath("$.traceId").exists());
+    }
 }

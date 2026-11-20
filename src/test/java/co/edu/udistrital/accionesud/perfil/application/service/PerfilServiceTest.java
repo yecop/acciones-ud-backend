@@ -26,7 +26,6 @@ import java.util.UUID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -97,10 +96,19 @@ class PerfilServiceTest {
         PerfilUsuario perfil = new PerfilUsuario(id, "Ana", "Perez", "ana@example.test", null,
                 LocalDate.of(1999, 5, 20), "ACTIVO", "PRINCIPIANTE", "MEDIO", null, List.of(), List.of());
         ActualizarPerfilCommand comando = new ActualizarPerfilCommand("Ana María", null, null, null, null, null, null);
-        when(repo.buscarPerfil(id)).thenReturn(Optional.of(perfil));
+        when(repo.actualizarPerfil(id, comando)).thenReturn(Optional.of(perfil));
 
         assertEquals(perfil, servicio.actualizarPerfil(id, comando));
         verify(repo).actualizarPerfil(id, comando);
-        verify(repo, times(2)).buscarPerfil(id);
+    }
+
+    @Test
+    void actualizarPerfilInexistenteLanza404() {
+        UUID id = UUID.randomUUID();
+        ActualizarPerfilCommand comando = new ActualizarPerfilCommand("Ana María", null, null, null, null, null, null);
+        when(repo.actualizarPerfil(id, comando)).thenReturn(Optional.empty());
+
+        assertThrows(PerfilNoEncontradoException.class, () -> servicio.actualizarPerfil(id, comando));
+        verify(repo).actualizarPerfil(id, comando);
     }
 }

@@ -9,7 +9,7 @@ import co.edu.udistrital.accionesud.perfil.domain.model.PerfilUsuario;
 import co.edu.udistrital.accionesud.perfil.domain.model.PreferenciasPerfil;
 import co.edu.udistrital.accionesud.perfil.domain.model.TipoOrden;
 import co.edu.udistrital.accionesud.perfil.domain.model.TipoVisualizacion;
-import co.edu.udistrital.accionesud.shared.domain.exception.ValidacionException;
+import co.edu.udistrital.accionesud.shared.domain.exception.InteresNoValidoException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -46,6 +46,7 @@ public class PerfilJdbcRepository implements PerfilRepositoryPort {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public Optional<PerfilUsuario> buscarPerfil(UUID usuarioId) {
         List<String> mercados = jdbc.queryForList("""
                 SELECT m.codigo FROM inversionista_interes_mercado im
@@ -84,7 +85,11 @@ public class PerfilJdbcRepository implements PerfilRepositoryPort {
 
     @Override
     @Transactional
-    public void actualizarPerfil(UUID usuarioId, ActualizarPerfilCommand c) {
+    public Optional<PerfilUsuario> actualizarPerfil(UUID usuarioId, ActualizarPerfilCommand c) {
+        if (buscarPerfil(usuarioId).isEmpty()) {
+            return Optional.empty();
+        }
+
         jdbc.update("""
                 UPDATE usuario
                 SET nombre = COALESCE(?::varchar, nombre),
@@ -107,9 +112,12 @@ public class PerfilJdbcRepository implements PerfilRepositoryPort {
         if (c.sectores() != null) {
             reemplazarSectores(usuarioId, c.sectores());
         }
+
+        return buscarPerfil(usuarioId);
     }
 
     @Override
+    @Transactional(readOnly = true)
     public Optional<PreferenciasPerfil> buscarPreferencias(UUID usuarioId) {
         Set<CanalNotificacion> canales = EnumSet.noneOf(CanalNotificacion.class);
         jdbc.queryForList("SELECT canal_id FROM preferencia_canal WHERE inversionista_id = ?",
@@ -179,7 +187,7 @@ public class PerfilJdbcRepository implements PerfilRepositoryPort {
                     INSERT INTO inversionista_interes_mercado (inversionista_id, mercado_id)
                     SELECT ?, id FROM mercado WHERE lower(codigo) = ?""", usuarioId, codigo);
             if (filas == 0) {
-                throw new ValidacionException("mercados", "El mercado '" + codigo + "' no existe");
+                throw new InteresNoValidoException("mercado", codigo);
             }
         }
     }
@@ -191,7 +199,7 @@ public class PerfilJdbcRepository implements PerfilRepositoryPort {
                     INSERT INTO inversionista_interes_sector (inversionista_id, sector_id)
                     SELECT ?, id FROM sector WHERE lower(nombre) = ?""", usuarioId, sector);
             if (filas == 0) {
-                throw new ValidacionException("sectores", "El sector '" + sector + "' no existe");
+                throw new InteresNoValidoException("sector", sector);
             }
         }
     }

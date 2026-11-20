@@ -28,7 +28,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@Testcontainers
+@Testcontainers(disabledWithoutDocker = true)
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("dev")
@@ -166,14 +166,46 @@ class PerfilIntegrationTest {
     }
 
     @Test
+    void patchConListasVaciasEliminaInteresesDeMercadosYSectores() throws Exception {
+        UUID id = crearInversionista(correoUnico());
+
+        modificarPerfil(id, "{\"mercados\": [], \"sectores\": []}")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.mercados.length()").value(0))
+                .andExpect(jsonPath("$.sectores.length()").value(0));
+
+        assertEquals(0, jdbc.queryForObject(
+                "SELECT count(*) FROM inversionista_interes_mercado WHERE inversionista_id = ?", Integer.class, id));
+        assertEquals(0, jdbc.queryForObject(
+                "SELECT count(*) FROM inversionista_interes_sector WHERE inversionista_id = ?", Integer.class, id));
+    }
+
+    @Test
+    void patchDeUsuarioSinPerfilDeInversionistaNoModificaDatosDeUsuario() throws Exception {
+        UUID id = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO usuario (id, rol_id, estado_usuario_id, nombre, apellido, correo,
+                                     contrasena_hash, celular, fecha_nacimiento)
+                VALUES (?, 1, 1, 'Bruno', 'Lopez', ?, 'hash', '+573001112233', DATE '1999-05-20')""",
+                id, correoUnico());
+
+        mockMvc.perform(patch("/api/v1/perfil").with(inversionista(id))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"nombres\":\"Cambio no válido\"}"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.codigo").value("PERFIL_NO_ENCONTRADO"));
+
+        assertEquals("Bruno", jdbc.queryForObject(
+                "SELECT nombre FROM usuario WHERE id = ?", String.class, id));
+    }
+
+    @Test
     void patchConFormatoInvalidoDevuelveDetallePorCampo() throws Exception {
         UUID id = crearInversionista(correoUnico());
 
-        modificarPerfil(id, "{\"celular\": \"abc\", \"mercados\": []}")
+        modificarPerfil(id, "{\"celular\": \"abc\", \"mercados\": [\" \"]}")
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.codigo").value("ERROR_VALIDACION"))
-                .andExpect(jsonPath("$.datos.campos[?(@.campo == 'celular')]").exists())
-                .andExpect(jsonPath("$.datos.campos[?(@.campo == 'mercados')]").exists());
+                .andExpect(jsonPath("$.datos.campos[*].campo", containsInAnyOrder("celular", "mercados[]")));
     }
 
     @Test
@@ -181,9 +213,10 @@ class PerfilIntegrationTest {
         UUID id = crearInversionista(correoUnico());
 
         modificarPerfil(id, "{\"mercados\": [\"XXX\"]}")
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.codigo").value("ERROR_VALIDACION"))
-                .andExpect(jsonPath("$.datos.campos[?(@.campo == 'mercados')]").exists());
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.codigo").value("INTERES_NO_VALIDO"))
+                .andExpect(jsonPath("$.traceId").exists())
+                .andExpect(jsonPath("$.mensaje").value(org.hamcrest.Matchers.containsString("mercado 'xxx'")));
 
         // La transacción se revierte: el mercado anterior sigue guardado.
         mockMvc.perform(get("/api/v1/perfil").with(inversionista(id)))
@@ -340,6 +373,28 @@ class PerfilIntegrationTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.codigo").value("ERROR_VALIDACION"))
                 .andExpect(jsonPath("$.datos.campos[?(@.campo == 'tipoVisualizacion')]").exists());
+    }
+
+    @Test
+    void elementosNulosEnCanalesYEventosDevuelven400SinGuardar() throws Exception {
+        UUID id = crearInversionista(correoUnico());
+        String canalNulo = PREFERENCIAS.replace("[\"EMAIL\", \"SMS\"]", "[\"EMAIL\", null]");
+        String eventoNulo = PREFERENCIAS.replace("[\"APERTURA_CIERRE_MERCADO\", \"ORDEN_EJECUTADA\"]",
+                "[\"APERTURA_CIERRE_MERCADO\", null]");
+
+        guardarPreferencias(id, canalNulo)
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.codigo").value("ERROR_VALIDACION"))
+                .andExpect(jsonPath("$.detalles", org.hamcrest.Matchers.hasItem(
+                        org.hamcrest.Matchers.containsString("canales"))));
+        guardarPreferencias(id, eventoNulo)
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.codigo").value("ERROR_VALIDACION"))
+                .andExpect(jsonPath("$.detalles", org.hamcrest.Matchers.hasItem(
+                        org.hamcrest.Matchers.containsString("eventos"))));
+
+        assertEquals(0, jdbc.queryForObject(
+                "SELECT count(*) FROM preferencia_perfil WHERE inversionista_id = ?", Integer.class, id));
     }
 
     @Test

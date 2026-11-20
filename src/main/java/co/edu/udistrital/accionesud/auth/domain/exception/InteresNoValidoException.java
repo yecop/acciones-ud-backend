@@ -1,10 +1,11 @@
 package co.edu.udistrital.accionesud.auth.domain.exception;
 
-import co.edu.udistrital.accionesud.shared.domain.exception.DomainException;
-
-public class InteresNoValidoException extends DomainException {
+/** @deprecated Usar la excepción compartida para intereses no válidos. */
+@Deprecated(forRemoval = false)
+public class InteresNoValidoException
+        extends co.edu.udistrital.accionesud.shared.domain.exception.InteresNoValidoException {
 
     public InteresNoValidoException(String tipo, String valor) {
-        super("INTERES_NO_VALIDO", "El " + tipo + " '" + valor + "' no existe");
+        super(tipo, valor);
     }
 }

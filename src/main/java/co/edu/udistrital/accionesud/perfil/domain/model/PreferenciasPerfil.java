@@ -10,6 +10,18 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
 
+/** Preferencias operativas persistibles de un inversionista.
+ * @param tipoVisualizacion estilo para visualizar los activos
+ * @param ordenPredeterminado criterio predeterminado de orden del portafolio
+ * @param ocultarActivosMenorPeso si se ocultan activos con menor peso
+ * @param tipoOrdenPredeterminado tipo de orden predeterminado; debe estar habilitado
+ * @param limiteOperacionesDiarias máximo diario, o {@code null} si no hay límite personal
+ * @param dobleAutorizacion si las órdenes grandes requieren segunda autorización
+ * @param umbralOrdenGrande umbral monetario de autorización, expresado en USD
+ * @param reporteMensual si se envía el reporte mensual
+ * @param canales canales de notificación; se requiere al menos uno
+ * @param eventos eventos notificados; el conjunto puede estar vacío
+ */
 public record PreferenciasPerfil(
         TipoVisualizacion tipoVisualizacion,
         OrdenPortafolio ordenPredeterminado,
