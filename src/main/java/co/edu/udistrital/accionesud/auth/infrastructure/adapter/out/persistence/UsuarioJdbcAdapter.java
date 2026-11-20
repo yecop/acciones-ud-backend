@@ -4,7 +4,7 @@ import co.edu.udistrital.accionesud.auth.application.dto.NuevoUsuario;
 import co.edu.udistrital.accionesud.auth.application.dto.SolicitudAlta;
 import co.edu.udistrital.accionesud.auth.application.port.out.UsuarioRepositoryPort;
 import co.edu.udistrital.accionesud.auth.domain.exception.CorreoDuplicadoException;
-import co.edu.udistrital.accionesud.auth.domain.exception.InteresNoValidoException;
+import co.edu.udistrital.accionesud.shared.domain.exception.InteresNoValidoException;
 import co.edu.udistrital.accionesud.auth.domain.model.EstadoUsuario;
 import co.edu.udistrital.accionesud.auth.domain.model.Usuario;
 import org.springframework.context.annotation.Profile;

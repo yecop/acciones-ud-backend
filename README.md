@@ -109,6 +109,38 @@ La aplicacion queda en `http://localhost:8080`.
 | POST | `/api/v1/auth/refresh` | rota el refresh token |
 | POST | `/api/v1/auth/logout` | revoca la sesión autenticada |
 | POST | `/api/v1/admin/altas/reintentar` | reintenta altas pendientes (rol ADMIN) |
+| GET | `/api/v1/perfil` | datos del inversionista autenticado (rol INVERSIONISTA) |
+| PATCH | `/api/v1/perfil` | actualiza datos del perfil de forma parcial |
+| GET | `/api/v1/perfil/preferencias` | preferencias operativas (valores por defecto si no se han guardado) |
+| PUT | `/api/v1/perfil/preferencias` | reemplaza las preferencias |
+
+### Perfil y preferencias (SCRUM-22)
+
+Las cuatro rutas requieren un JWT de un usuario con rol `INVERSIONISTA`. El
+backend identifica al usuario desde la autenticación; no se recibe un ID de
+usuario en la ruta ni en el cuerpo.
+
+`PATCH /api/v1/perfil` actualiza solo los campos enviados. Los campos omitidos
+se conservan. Si se envía `mercados: []` o `sectores: []`, se eliminan todos los
+intereses de esa categoría. Un mercado o sector inexistente responde
+`422 INTERES_NO_VALIDO`; los demás datos inválidos responden
+`400 ERROR_VALIDACION` con el detalle por campo.
+
+`GET /api/v1/perfil/preferencias` no crea filas en la base de datos. Mientras
+no se hayan guardado preferencias, responde con estos valores: visualización
+`LISTA`, orden del portafolio `VALOR_TOTAL`, orden predeterminado `MARKET`, canal
+`EMAIL`, y doble autorización desactivada. Los eventos disponibles aparecen
+habilitados por defecto. `TRAILING_STOP` aparece en las opciones, pero
+deshabilitado.
+
+`PUT /api/v1/perfil/preferencias` reemplaza el conjunto completo de preferencias.
+Acepta canales `EMAIL`, `SMS` o `WHATSAPP` (al menos uno), y eventos
+`APERTURA_CIERRE_MERCADO`, `RESUMEN_DIARIO_OPERACIONES` y `ORDEN_EJECUTADA`
+(puede ser una lista vacía). No se aceptan elementos nulos. El límite diario,
+cuando se especifica, debe ser mayor que cero. Si la doble autorización está
+activa, `umbralOrdenGrande` es obligatorio y debe ser un monto positivo con hasta
+dos decimales. Una solicitud inválida responde `400 ERROR_VALIDACION` y no altera
+las preferencias previamente almacenadas.
 
 ## Datos de mercado con cache (SCRUM-24)
 

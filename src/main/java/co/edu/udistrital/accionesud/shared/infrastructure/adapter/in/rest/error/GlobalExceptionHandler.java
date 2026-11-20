@@ -25,6 +25,7 @@ import org.springframework.web.servlet.NoHandlerFoundException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 import co.edu.udistrital.accionesud.shared.domain.exception.ConflictoException;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import co.edu.udistrital.accionesud.shared.domain.exception.ValidacionException;
 
 import java.util.List;
 import java.util.Map;
@@ -133,6 +134,19 @@ public class GlobalExceptionHandler {
         CodigoError codigo = CodigoError.desdeStatus(status);
         String mensaje = ex.getReason() != null ? ex.getReason() : codigo.getMensaje();
         return respuesta(status, codigo.name(), mensaje, List.of(), Map.of(), request);
+    }
+
+    @ExceptionHandler(ValidacionException.class)
+    public ResponseEntity<ErrorResponse> manejarValidacionDominio(ValidacionException ex,
+                                                                  HttpServletRequest request) {
+        List<String> detalles = ex.getErrores().stream()
+                .map(error -> error.campo() + ": " + error.mensaje())
+                .toList();
+        List<Map<String, String>> campos = ex.getErrores().stream()
+                .map(error -> Map.of("campo", error.campo(), "mensaje", error.mensaje()))
+                .toList();
+        return respuesta(HttpStatus.BAD_REQUEST, CodigoError.ERROR_VALIDACION,
+                detalles, Map.of("campos", campos), request);
     }
 
     @ExceptionHandler(DomainException.class)
