@@ -3,6 +3,7 @@ package co.edu.udistrital.accionesud.auth.infrastructure.adapter.in.rest;
 import co.edu.udistrital.accionesud.auth.application.port.out.HasheadorPort;
 import co.edu.udistrital.accionesud.auth.application.port.out.NotificadorMfaPort;
 import co.edu.udistrital.accionesud.auth.application.port.out.RelojPort;
+import co.edu.udistrital.accionesud.support.PostgresSpringSupport;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -11,20 +12,17 @@ import org.junit.jupiter.api.Timeout;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.boot.test.mock.mockito.SpyBean;
 import org.springframework.http.MediaType;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -56,20 +54,16 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("dev")
-@Testcontainers(disabledWithoutDocker = true)
-class AuthIntegrationTest {
+class AuthIntegrationTest extends PostgresSpringSupport {
 
-    private static final String CORREO = "inversionista@accionesud.local";
-    private static final String CLAVE = "Clave123!";
+    @Value("${accionesud.auth.demo.correo}")
+    private String correoDemo;
 
-    @Container
-    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine");
+    @Value("${accionesud.auth.demo.clave}")
+    private String claveDemo;
 
     @DynamicPropertySource
     static void propiedades(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", postgres::getJdbcUrl);
-        registry.add("spring.datasource.username", postgres::getUsername);
-        registry.add("spring.datasource.password", postgres::getPassword);
         registry.add("accionesud.auth.jwt.secreto",
                 () -> "integration-secreto-jwt-acciones-ud-2026-32bytes");
         registry.add("accionesud.auth.mfa.reenvio-espera-segundos", () -> "60");
@@ -80,9 +74,6 @@ class AuthIntegrationTest {
 
     @Autowired
     private ObjectMapper objectMapper;
-
-    @Autowired
-    private JdbcTemplate jdbc;
 
     @MockBean
     private NotificadorMfaPort notificador;
@@ -102,13 +93,13 @@ class AuthIntegrationTest {
     void flujoCompletoLoginMfaRefreshYLogout() throws Exception {
         mockMvc.perform(post("/api/v1/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"correo\":\"" + CORREO + "\",\"contrasena\":\"incorrecta\"}"))
+                        .content("{\"correo\":\"" + correoDemo + "\",\"contrasena\":\"incorrecta\"}"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.codigo").value("CREDENCIALES_INVALIDAS"));
 
         MvcResult login = mockMvc.perform(post("/api/v1/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"correo\":\"" + CORREO + "\",\"contrasena\":\"" + CLAVE + "\"}"))
+                        .content("{\"correo\":\"" + correoDemo + "\",\"contrasena\":\"" + claveDemo + "\"}"))
                 .andExpect(status().isOk())
                 .andExpect(header().exists("X-Trace-Id"))
                 .andExpect(jsonPath("$.canal").value("EMAIL"))
@@ -185,7 +176,7 @@ class AuthIntegrationTest {
 
         MvcResult segundoLogin = mockMvc.perform(post("/api/v1/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"correo\":\"" + CORREO + "\",\"contrasena\":\"" + CLAVE + "\"}"))
+                        .content("{\"correo\":\"" + correoDemo + "\",\"contrasena\":\"" + claveDemo + "\"}"))
                 .andExpect(status().isOk())
                 .andReturn();
         String segundoMfaToken = json(segundoLogin).get("mfaToken").asText();
@@ -219,14 +210,14 @@ class AuthIntegrationTest {
     void verificarMfaConcurrenteMismoTokenSoloUnoEmiteTokens() throws Exception {
         MvcResult login = mockMvc.perform(post("/api/v1/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"correo\":\"" + CORREO + "\",\"contrasena\":\"" + CLAVE + "\"}"))
+                        .content("{\"correo\":\"" + correoDemo + "\",\"contrasena\":\"" + claveDemo + "\"}"))
                 .andExpect(status().isOk())
                 .andReturn();
         String mfaToken = json(login).get("mfaToken").asText();
         String codigo = ultimoCodigoEnviado();
 
         UUID usuarioId = jdbc.queryForObject(
-                "SELECT id FROM usuario WHERE lower(correo) = lower(?)", UUID.class, CORREO);
+                "SELECT id FROM usuario WHERE lower(correo) = lower(?)", UUID.class, correoDemo);
         Integer refrescosAntes = jdbc.queryForObject(
                 "SELECT count(*) FROM auth_token_refresco WHERE usuario_id = ?",
                 Integer.class, usuarioId);
@@ -316,7 +307,7 @@ class AuthIntegrationTest {
     void verificarMfaConcurrenteCodigosIncorrectosNoSuperaElMaximoDeIntentos() throws Exception {
         MvcResult login = mockMvc.perform(post("/api/v1/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"correo\":\"" + CORREO + "\",\"contrasena\":\"" + CLAVE + "\"}"))
+                        .content("{\"correo\":\"" + correoDemo + "\",\"contrasena\":\"" + claveDemo + "\"}"))
                 .andExpect(status().isOk())
                 .andReturn();
         String mfaToken = json(login).get("mfaToken").asText();
@@ -402,7 +393,7 @@ class AuthIntegrationTest {
         when(reloj.ahora()).thenReturn(base);
         MvcResult login = mockMvc.perform(post("/api/v1/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"correo\":\"" + CORREO + "\",\"contrasena\":\"" + CLAVE + "\"}"))
+                        .content("{\"correo\":\"" + correoDemo + "\",\"contrasena\":\"" + claveDemo + "\"}"))
                 .andExpect(status().isOk())
                 .andReturn();
         when(reloj.ahora()).thenReturn(base.plusSeconds(61));
@@ -493,7 +484,7 @@ class AuthIntegrationTest {
 
     private String ultimoCodigoEnviado() {
         ArgumentCaptor<String> codigos = ArgumentCaptor.forClass(String.class);
-        verify(notificador, atLeastOnce()).enviarCodigo(eq(CORREO), codigos.capture(), any());
+        verify(notificador, atLeastOnce()).enviarCodigo(eq(correoDemo), codigos.capture(), any());
         return codigos.getAllValues().get(codigos.getAllValues().size() - 1);
     }
 
