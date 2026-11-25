@@ -73,6 +73,8 @@ Un PR debe:
 - Incluir pruebas cuando agregue logica.
 - Mantener las reglas ArchUnit.
 - Respetar el contrato de errores y el `traceId`.
+- Si se tocan pruebas con PostgreSQL, usar la base compartida de
+  `src/test/java/co/edu/udistrital/accionesud/support` y datos con ids unicos.
 - Tener al menos una revision aprobada.
 
 ## Estilo de codigo

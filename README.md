@@ -70,11 +70,11 @@ El build falla si se rompe alguna regla.
 
 | Perfil | Uso | Observaciones |
 |---|---|---|
-| `dev` | desarrollo local | Swagger habilitado, logs legibles con traceId |
-| `test` | pruebas automatizadas | sin base de datos; MFA y auth se prueban con adaptadores simulados |
-| `prod` | despliegue | logs JSON, Swagger deshabilitado por defecto |
+| `dev` | desarrollo local | PostgreSQL local, Swagger, datos demo y logs legibles con traceId |
+| `test` | pruebas sin base de datos | DataSource y Flyway excluidos; health de correo y Redis desactivados; cotizaciones en caché de memoria y actualizador apagado |
+| `prod` | despliegue | PostgreSQL obligatorio (`DATABASE_URL`, `DATABASE_USER`, `DATABASE_PASSWORD`), logs JSON, Swagger y datos demo deshabilitados |
 
-El perfil por defecto es `dev`.
+El perfil por defecto es `dev`. La configuración común (correo, JWT, proveedores, CORS) está en `application.yml`; cada perfil solo aporta sus diferencias. Los datos demo están detrás de `accionesud.auth.demo.habilitado`, que solo es `true` en `dev`.
 
 ## Ejecucion
 
@@ -94,6 +94,16 @@ La aplicacion queda en `http://localhost:8080`.
 ```
 
 `verify` ejecuta pruebas unitarias, pruebas de integracion y reglas ArchUnit.
+
+Las pruebas que necesitan PostgreSQL (`AuthIntegrationTest`, `RegistroIntegrationTest`,
+`PerfilIntegrationTest` y `MigracionesIntegrationTest`) comparten un unico contenedor
+`postgres:16-alpine` gestionado desde `src/test/java/co/edu/udistrital/accionesud/support`.
+El datasource y Flyway (`classpath:db/migration`) se registran de forma centralizada, y
+antes de cada prueba se limpian las tablas `auth_*` con
+`src/test/resources/db/limpiar-datos.sql`. Cada prueba debe crear sus propios datos con
+identificadores unicos. Las suites usan `@Testcontainers(disabledWithoutDocker = true)`:
+sin Docker se omiten en local, pero el workflow de CI falla si alguna no se ejecuta. Por
+ello se necesita Docker para validar `clean verify` en CI.
 
 ## Endpoints base
 
@@ -214,6 +224,11 @@ Cualquier error 400, 401, 403, 404 o 500 devuelve el siguiente cuerpo:
 `detalles` y `datos` siempre estan presentes, aunque esten vacios. Los errores
 500 no exponen stacktrace ni mensajes internos.
 
+Nota de seguimiento (SCRUM-34): `AuthExceptionHandler` traduce `CodigoAuth` a
+`CodigoError` por nombre (`valueOf`). Si se añade un codigo de autenticacion sin
+su equivalente en `CodigoError`, la respuesta sera 500. Queda registrado para un
+ticket posterior; este cambio no modifica el contrato de errores.
+
 ## Seguridad
 
 La API es stateless y usa JWT firmados con HS256. El login nunca emite tokens
@@ -239,13 +254,17 @@ El resto requiere `Authorization: Bearer <accessToken>`. La ruta
 
 En el perfil `dev` se crea el usuario demo
 `inversionista@accionesud.local` con clave `Clave123!` (configurable con
-`AUTH_DEMO_CORREO` y `AUTH_DEMO_CLAVE`). Los códigos MFA se envían a Mailpit en
-`http://localhost:8025`.
+`AUTH_DEMO_CORREO` y `AUTH_DEMO_CLAVE`, y desactivable con
+`accionesud.auth.demo.habilitado=false`). En `test` y `prod` no se crea: el
+inicializador exige el perfil `dev` y la propiedad habilitada. Los códigos MFA se envían
+a Mailpit en `http://localhost:8025`.
 
 ## Variables de entorno
 
 Copiar `.env.example` y ajustar los valores locales. En produccion no se deben
-versionar secretos.
+versionar secretos: `DATABASE_URL`, `DATABASE_USER` y `DATABASE_PASSWORD` son
+obligatorios en el perfil `prod` y no tienen valor por defecto. `.env.example`
+incluye todas las variables referenciadas en `application*.yml`.
 
 ## Base de datos local
 
@@ -256,7 +275,9 @@ docker compose down -v    # reinicia la base desde cero
 ```
 
 Las migraciones están en `src/main/resources/db/migration`. No se edita una
-migración ya fusionada: se crea una nueva.
+migración ya fusionada: se crea una nueva. Las pruebas de integración usan una
+base PostgreSQL controlada con Testcontainers (ver sección "Pruebas"), no este
+servicio local.
 
 ## Ramas y commits
 
