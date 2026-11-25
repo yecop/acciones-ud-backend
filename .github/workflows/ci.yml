@@ -15,6 +15,8 @@ jobs:
   build:
     name: Build y pruebas
     runs-on: ubuntu-latest
+    env:
+      SPRING_PROFILES_ACTIVE: test
 
     steps:
       - name: Checkout
@@ -29,6 +31,31 @@ jobs:
 
       - name: Verificar build
         run: ./mvnw -B clean verify
+
+      - name: Verificar pruebas de PostgreSQL ejecutadas
+        run: |
+          python3 - <<'PY'
+          import glob
+          import xml.etree.ElementTree as ET
+
+          esperadas = {
+              "AuthIntegrationTest",
+              "RegistroIntegrationTest",
+              "PerfilIntegrationTest",
+              "MigracionesIntegrationTest",
+          }
+          ejecutadas = set()
+          for ruta in glob.glob("target/surefire-reports/TEST-*.xml"):
+              raiz = ET.parse(ruta).getroot()
+              nombre = raiz.attrib["name"].rsplit(".", 1)[-1]
+              if (nombre in esperadas
+                      and int(raiz.attrib["tests"]) > 0
+                      and int(raiz.attrib.get("skipped", "0")) == 0):
+                  ejecutadas.add(nombre)
+          faltantes = sorted(esperadas - ejecutadas)
+          if faltantes:
+              raise SystemExit("Pruebas PostgreSQL no ejecutadas: " + ", ".join(faltantes))
+          PY
 
       - name: Publicar reportes de pruebas
         if: always()
