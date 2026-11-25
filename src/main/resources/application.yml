@@ -10,6 +10,15 @@ spring:
   mvc:
     problemdetails:
       enabled: false
+  mail:
+    host: ${MAIL_HOST:localhost}
+    port: ${MAIL_PORT:1025}
+    properties:
+      mail:
+        smtp:
+          auth: ${MAIL_SMTP_AUTH:false}
+          starttls:
+            enable: ${MAIL_SMTP_STARTTLS:false}
   # SCRUM-24: Redis guarda la caché de cotizaciones por ticker (ver docker-compose.yml).
   data:
     redis:
@@ -66,9 +75,6 @@ accionesud:
     login:
       max-fallos: ${AUTH_LOGIN_MAX_FALLOS:5}
       ventana-segundos: ${AUTH_LOGIN_VENTANA_SEGUNDOS:900}
-    demo:
-      correo: ${AUTH_DEMO_CORREO:inversionista@accionesud.local}
-      clave: ${AUTH_DEMO_CLAVE:Clave123!}
     alpaca:
       base-url: ${ALPACA_BROKER_BASE_URL:https://broker-api.sandbox.alpaca.markets}
       api-key: ${ALPACA_BROKER_API_KEY:}
@@ -152,24 +158,3 @@ accionesud:
       - mercado: ASX
         fecha: 2026-01-26
         descripcion: "Australia Day"
-
----
-# SCRUM-24: en las pruebas, caché de cotizaciones en memoria y actualizador apagado
-# (las pruebas ejecutan los ciclos a mano). Se define aquí, y no en application-test.yml,
-# para no chocar con otras ramas que modifican ese archivo.
-spring:
-  config:
-    activate:
-      on-profile: test
-
-accionesud:
-  mercados:
-    cotizaciones:
-      actualizador-habilitado: false
-      cache:
-        tipo: memoria
-
-management:
-  health:
-    redis:
-      enabled: false

@@ -2,7 +2,6 @@ spring:
   config:
     activate:
       on-profile: prod
-  # --- nuevo ---
   datasource:
     url: ${DATABASE_URL:}
     username: ${DATABASE_USER:}
@@ -15,7 +14,15 @@ springdoc:
     enabled: false
 
 management:
-  endpoints:
-    web:
-      exposure:
-        include: health,info
+  endpoint:
+    health:
+      show-details: never
+
+logging:
+  level:
+    co.edu.udistrital.accionesud: INFO
+
+accionesud:
+  auth:
+    demo:
+      habilitado: false
