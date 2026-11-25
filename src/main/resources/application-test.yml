@@ -4,7 +4,6 @@ spring:
       on-profile: test
   main:
     banner-mode: "off"
-  # --- nuevo ---
   autoconfigure:
     exclude:
       - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
@@ -12,12 +11,26 @@ spring:
       - org.springframework.boot.autoconfigure.jdbc.JdbcTemplateAutoConfiguration
       - org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration
 
-logging:
-  level:
-    root: WARN
-    co.edu.udistrital.accionesud: INFO
-
 accionesud:
   auth:
     jwt:
       secreto: ${AUTH_JWT_SECRET:test-secreto-jwt-acciones-ud-2026-32bytes-minimo}
+    demo:
+      habilitado: false
+  mercados:
+    cotizaciones:
+      actualizador-habilitado: false
+      cache:
+        tipo: memoria
+
+management:
+  health:
+    mail:
+      enabled: false
+    redis:
+      enabled: false
+
+logging:
+  level:
+    root: WARN
+    co.edu.udistrital.accionesud: INFO

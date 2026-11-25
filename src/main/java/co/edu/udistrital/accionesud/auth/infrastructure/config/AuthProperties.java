@@ -216,8 +216,8 @@ public class AuthProperties {
     }
 
     public static class Demo {
-        private String correo = "inversionista@accionesud.local";
-        private String clave = "Clave123!";
+        private String correo;
+        private String clave;
 
         public String getCorreo() {
             return correo;

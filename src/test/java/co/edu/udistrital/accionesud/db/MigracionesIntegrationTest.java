@@ -1,5 +1,6 @@
 package co.edu.udistrital.accionesud.db;
 
+import co.edu.udistrital.accionesud.support.PostgresIntegrationSupport;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -7,8 +8,6 @@ import org.springframework.core.io.ClassPathResource;
 import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.io.IOException;
@@ -20,17 +19,14 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 @Testcontainers(disabledWithoutDocker = true)
-class MigracionesIntegrationTest {
-
-    @Container
-    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine");
+class MigracionesIntegrationTest extends PostgresIntegrationSupport {
 
     static JdbcTemplate jdbc;
 
     @BeforeAll
     static void migrar() {
         DriverManagerDataSource dataSource = new DriverManagerDataSource(
-                postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword());
+                contendor().getJdbcUrl(), contendor().getUsername(), contendor().getPassword());
         Flyway.configure()
                 .dataSource(dataSource)
                 .locations("classpath:db/migration")

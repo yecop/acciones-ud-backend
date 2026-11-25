@@ -2,6 +2,7 @@ package co.edu.udistrital.accionesud.auth.infrastructure.config;
 
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Profile;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -11,6 +12,7 @@ import java.util.UUID;
 
 @Component
 @Profile("dev")
+@ConditionalOnProperty(prefix = "accionesud.auth.demo", name = "habilitado", havingValue = "true")
 public class AuthDemoDataInitializer implements ApplicationRunner {
 
     private final JdbcTemplate jdbc;
