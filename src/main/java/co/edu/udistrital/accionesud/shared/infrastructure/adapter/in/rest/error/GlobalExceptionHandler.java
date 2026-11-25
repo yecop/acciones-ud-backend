@@ -23,6 +23,7 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.NoHandlerFoundException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
+import co.edu.udistrital.accionesud.shared.domain.exception.AccesoDenegadoException;
 import co.edu.udistrital.accionesud.shared.domain.exception.ConflictoException;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import co.edu.udistrital.accionesud.shared.domain.exception.ValidacionException;
@@ -155,6 +156,8 @@ public class GlobalExceptionHandler {
         HttpStatus status;
         if (ex instanceof ConflictoException) {
             status = HttpStatus.CONFLICT;
+        } else if (ex instanceof AccesoDenegadoException) {
+            status = HttpStatus.FORBIDDEN;
         } else if (ex.getCodigo() != null && ex.getCodigo().contains("NO_ENCONTRADO")) {
             status = HttpStatus.NOT_FOUND;
         } else {

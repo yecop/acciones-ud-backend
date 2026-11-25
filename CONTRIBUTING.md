@@ -95,8 +95,10 @@ Un PR debe:
 ## Definition of Done
 
 - La funcionalidad cumple los criterios de aceptacion.
-- `./mvnw -B clean verify` pasa, incluidas las cinco suites con infraestructura
-  real (PostgreSQL y Redis) sin omisiones en CI.
+- `./mvnw -B clean verify` pasa, incluidas las seis suites con infraestructura
+  real (PostgreSQL y Redis) sin omisiones en CI. Una suite nueva con PostgreSQL
+  debe extender `PostgresSpringSupport` y agregarse a la lista del guard en
+  `.github/workflows/ci.yml`.
 - Las reglas ArchUnit pasan.
 - Los errores usan el contrato global.
 - Los logs y respuestas conservan el `traceId`.

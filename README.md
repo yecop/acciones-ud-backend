@@ -98,9 +98,9 @@ La aplicacion queda en `http://localhost:8080`.
 
 `verify` ejecuta pruebas unitarias, pruebas de integracion y reglas ArchUnit.
 
-Las pruebas con infraestructura real son cinco. Las que necesitan PostgreSQL
-(`AuthIntegrationTest`, `RegistroIntegrationTest`, `PerfilIntegrationTest` y
-`MigracionesIntegrationTest`) comparten un unico contenedor `postgres:16-alpine` gestionado
+Las pruebas con infraestructura real son seis. Las que necesitan PostgreSQL
+(`AuthIntegrationTest`, `RegistroIntegrationTest`, `PerfilIntegrationTest`,
+`MigracionesIntegrationTest` y `AuditoriaPostgresIntegrationTest`) comparten un unico contenedor `postgres:16-alpine` gestionado
 desde `src/test/java/co/edu/udistrital/accionesud/support`; el datasource y Flyway
 (`classpath:db/migration`) se registran de forma centralizada y antes de cada prueba se
 limpian las tablas `auth_*` con `src/test/resources/db/limpiar-datos.sql`.
