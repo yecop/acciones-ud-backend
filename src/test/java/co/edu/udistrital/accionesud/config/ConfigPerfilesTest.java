@@ -2,6 +2,7 @@ package co.edu.udistrital.accionesud.config;
 
 import co.edu.udistrital.accionesud.auth.infrastructure.config.AuthDemoDataInitializer;
 import co.edu.udistrital.accionesud.auth.infrastructure.config.AuthProperties;
+import co.edu.udistrital.accionesud.shared.infrastructure.config.ValidadorConfiguracionDespliegue;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.springframework.boot.test.context.ConfigDataApplicationContextInitializer;
@@ -22,9 +23,11 @@ class ConfigPerfilesTest {
         return runner.withPropertyValues(
                 "spring.main.banner-mode=off",
                 "spring.profiles.active=" + perfil,
-                "DATABASE_URL=",
-                "DATABASE_USER=",
-                "DATABASE_PASSWORD=");
+                "DATABASE_URL=jdbc:postgresql://db:5432/acciones_ud",
+                "DATABASE_USER=acciones",
+                "DATABASE_PASSWORD=clave-segura-de-prueba",
+                "AUTH_JWT_SECRET=secreto-jwt-de-prueba-acciones-ud-2026-32bytes-minimo",
+                "ACCIONESUD_CORS_ALLOWED_ORIGINS=https://frontend.accionesud.example");
     }
 
     @Test
@@ -69,8 +72,29 @@ class ConfigPerfilesTest {
             assertThat(entorno.getProperty("management.endpoint.health.show-details"))
                     .isEqualTo("never");
             assertThat(entorno.getProperty("spring.mail.host")).isEqualTo("localhost");
-            assertThat(entorno.getProperty("spring.datasource.url")).isEmpty();
+            assertThat(entorno.getProperty("spring.datasource.url"))
+                    .isEqualTo("jdbc:postgresql://db:5432/acciones_ud");
+            assertThat(entorno.getProperty("accionesud.auth.jwt.secreto"))
+                    .asString().hasSizeGreaterThanOrEqualTo(32);
         });
+    }
+
+    @Test
+    void stagingRequiereBaseYNoCargaDatosDemo() {
+        conPerfil("staging")
+                .withUserConfiguration(ValidadorConfiguracionDespliegue.class)
+                .run(context -> {
+                    Environment entorno = context.getEnvironment();
+                    assertThat(context.getStartupFailure()).isNull();
+                    assertThat(entorno.getProperty("accionesud.auth.demo.habilitado")).isEqualTo("false");
+                    assertThat(entorno.getProperty("springdoc.api-docs.enabled")).isEqualTo("true");
+                    assertThat(entorno.getProperty("management.endpoint.health.show-details"))
+                            .isEqualTo("when-authorized");
+                    assertThat(entorno.getProperty("spring.datasource.url"))
+                            .isEqualTo("jdbc:postgresql://db:5432/acciones_ud");
+                    assertThat(entorno.getProperty("accionesud.cors.allowed-origins"))
+                            .isEqualTo("https://frontend.accionesud.example");
+                });
     }
 
     @Test
@@ -105,6 +129,22 @@ class ConfigPerfilesTest {
                 .withPropertyValues("spring.profiles.active=dev",
                         "accionesud.auth.demo.habilitado=true")
                 .run(context -> assertThat(context).hasSingleBean(AuthDemoDataInitializer.class));
+    }
+
+    @Test
+    void prodFallaSiFaltaElSecretoJwt() {
+        new ApplicationContextRunner()
+                .withInitializer(new ConfigDataApplicationContextInitializer())
+                .withUserConfiguration(ValidadorConfiguracionDespliegue.class)
+                .withPropertyValues(
+                        "spring.main.banner-mode=off",
+                        "spring.profiles.active=prod",
+                        "DATABASE_URL=jdbc:postgresql://db:5432/acciones_ud",
+                        "DATABASE_USER=acciones",
+                        "DATABASE_PASSWORD=clave-segura-de-prueba")
+                .run(context -> assertThat(context.getStartupFailure())
+                        .hasRootCauseInstanceOf(IllegalStateException.class)
+                        .hasRootCauseMessage("AUTH_JWT_SECRET es obligatoria y debe tener al menos 32 caracteres"));
     }
 
     @Import(AuthDemoDataInitializer.class)

@@ -24,5 +24,7 @@ logging:
 
 accionesud:
   auth:
+    jwt:
+      secreto: ${AUTH_JWT_SECRET:}
     demo:
       habilitado: false
