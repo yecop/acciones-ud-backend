@@ -16,14 +16,11 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.event.EventListener;
+import co.edu.udistrital.accionesud.support.PostgresSpringSupport;
 import org.springframework.dao.DataAccessException;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -35,23 +32,19 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * SCRUM-33 contra PostgreSQL real (Testcontainers; se omite sin Docker y corre en el CI):
- * transacción de Spring, auditoría en {@code auditoria_evento} con traceId, eventos solo tras el
- * commit y tabla de auditoría inmutable.
+ * SCRUM-33 contra PostgreSQL real: transacción de Spring, auditoría en {@code auditoria_evento}
+ * con traceId, eventos solo tras el commit y tabla de auditoría inmutable.
+ *
+ * <p>Usa el contenedor compartido de {@link PostgresSpringSupport} (SCRUM-34): se omite sin
+ * Docker en local y el guard del CI exige que se ejecute. Cada prueba usa un traceId único, así
+ * que no necesita limpiar {@code auditoria_evento} (que además es inmutable).</p>
  */
-@Testcontainers(disabledWithoutDocker = true)
 @SpringBootTest
 @ActiveProfiles("dev")
-class AuditoriaPostgresIntegrationTest {
-
-    @Container
-    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine");
+class AuditoriaPostgresIntegrationTest extends PostgresSpringSupport {
 
     @DynamicPropertySource
     static void propiedades(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", postgres::getJdbcUrl);
-        registry.add("spring.datasource.username", postgres::getUsername);
-        registry.add("spring.datasource.password", postgres::getPassword);
         registry.add("accionesud.auth.reintento.habilitado", () -> "false");
         registry.add("accionesud.mercados.cotizaciones.actualizador-habilitado", () -> "false");
         registry.add("accionesud.mercados.cotizaciones.cache.tipo", () -> "memoria");
@@ -79,7 +72,6 @@ class AuditoriaPostgresIntegrationTest {
     @Autowired RegistradorAuditoria auditoria;
     @Autowired RegistroAuditoriaPort puertoAuditoria;
     @Autowired PublicadorEventosPort eventos;
-    @Autowired JdbcTemplate jdbc;
     @Autowired Consumidor consumidor;
 
     private String trace;

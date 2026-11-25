@@ -82,7 +82,8 @@ name = "broker", havingValue = "alpaca")` y se activa cambiando la propiedad en 
   `fijarEstado(...)`; `AccesoPremiumEnMemoriaAdapter.otorgar(id)`;
   `AccesoComisionistaEnMemoriaAdapter.asociar(inv, com)`.
 - `AuditoriaPostgresIntegrationTest` verifica commit, rollback, traceId e inmutabilidad contra
-  PostgreSQL real (Testcontainers).
+  PostgreSQL real. Extiende `PostgresSpringSupport` (contenedor compartido de SCRUM-34) y está en
+  la lista del guard de CI, así que no puede omitirse en el pipeline.
 
 ## Migración
 
