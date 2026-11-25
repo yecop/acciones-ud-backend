@@ -75,6 +75,10 @@ Un PR debe:
 - Respetar el contrato de errores y el `traceId`.
 - Si se tocan pruebas con PostgreSQL, usar la base compartida de
   `src/test/java/co/edu/udistrital/accionesud/support` y datos con ids unicos.
+- Si se tocan pruebas con Redis, usar Testcontainers como en
+  `RedisCotizacionCacheAdapterIntegrationTest`.
+- Usar reloj controlado y datos semilla fijos cuando la prueba evalue horarios
+  de mercado.
 - Tener al menos una revision aprobada.
 
 ## Estilo de codigo
@@ -91,8 +95,16 @@ Un PR debe:
 ## Definition of Done
 
 - La funcionalidad cumple los criterios de aceptacion.
-- `./mvnw -B clean verify` pasa.
+- `./mvnw -B clean verify` pasa, incluidas las cinco suites con infraestructura
+  real (PostgreSQL y Redis) sin omisiones en CI.
 - Las reglas ArchUnit pasan.
 - Los errores usan el contrato global.
 - Los logs y respuestas conservan el `traceId`.
 - La documentacion o el OpenAPI se actualizan si cambia el contrato.
+- El escenario de aceptacion se valida en el ambiente publico de pruebas
+  (`staging`): nada se acepta en localhost.
+- No hay defectos criticos o altos abiertos en JIRA para la historia.
+- La cobertura de dominio y casos de uso se acerca a la meta del 80 %.
+- Las puertas de entrega del plan de pruebas (Newman/Postman, Playwright, k6,
+  OWASP ZAP y Trivy) quedan documentadas como pendientes del pipeline; no son
+  parte de este cambio.

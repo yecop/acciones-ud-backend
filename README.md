@@ -72,9 +72,12 @@ El build falla si se rompe alguna regla.
 |---|---|---|
 | `dev` | desarrollo local | PostgreSQL local, Swagger, datos demo y logs legibles con traceId |
 | `test` | pruebas sin base de datos | DataSource y Flyway excluidos; health de correo y Redis desactivados; cotizaciones en caché de memoria y actualizador apagado |
-| `prod` | despliegue | PostgreSQL obligatorio (`DATABASE_URL`, `DATABASE_USER`, `DATABASE_PASSWORD`), logs JSON, Swagger y datos demo deshabilitados |
+| `staging` | ambiente público de pruebas | PostgreSQL y `AUTH_JWT_SECRET` obligatorios, Swagger activo para pruebas de API, health `when-authorized`, sin datos demo |
+| `prod` | despliegue | PostgreSQL y `AUTH_JWT_SECRET` obligatorios, logs JSON, Swagger y datos demo deshabilitados |
 
 El perfil por defecto es `dev`. La configuración común (correo, JWT, proveedores, CORS) está en `application.yml`; cada perfil solo aporta sus diferencias. Los datos demo están detrás de `accionesud.auth.demo.habilitado`, que solo es `true` en `dev`.
+
+`test` es el perfil de las pruebas rápidas y de CI, no el ambiente público de aceptación. En `staging` y `prod`, `ValidadorConfiguracionDespliegue` falla el arranque si faltan `DATABASE_URL`, `DATABASE_USER`, `DATABASE_PASSWORD` o un `AUTH_JWT_SECRET` de al menos 32 caracteres; en `staging` también exige `ACCIONESUD_CORS_ALLOWED_ORIGINS` con la URL pública del frontend.
 
 ## Ejecucion
 
@@ -95,15 +98,17 @@ La aplicacion queda en `http://localhost:8080`.
 
 `verify` ejecuta pruebas unitarias, pruebas de integracion y reglas ArchUnit.
 
-Las pruebas que necesitan PostgreSQL (`AuthIntegrationTest`, `RegistroIntegrationTest`,
-`PerfilIntegrationTest` y `MigracionesIntegrationTest`) comparten un unico contenedor
-`postgres:16-alpine` gestionado desde `src/test/java/co/edu/udistrital/accionesud/support`.
-El datasource y Flyway (`classpath:db/migration`) se registran de forma centralizada, y
-antes de cada prueba se limpian las tablas `auth_*` con
-`src/test/resources/db/limpiar-datos.sql`. Cada prueba debe crear sus propios datos con
-identificadores unicos. Las suites usan `@Testcontainers(disabledWithoutDocker = true)`:
-sin Docker se omiten en local, pero el workflow de CI falla si alguna no se ejecuta. Por
-ello se necesita Docker para validar `clean verify` en CI.
+Las pruebas con infraestructura real son cinco. Las que necesitan PostgreSQL
+(`AuthIntegrationTest`, `RegistroIntegrationTest`, `PerfilIntegrationTest` y
+`MigracionesIntegrationTest`) comparten un unico contenedor `postgres:16-alpine` gestionado
+desde `src/test/java/co/edu/udistrital/accionesud/support`; el datasource y Flyway
+(`classpath:db/migration`) se registran de forma centralizada y antes de cada prueba se
+limpian las tablas `auth_*` con `src/test/resources/db/limpiar-datos.sql`.
+`RedisCotizacionCacheAdapterIntegrationTest` usa Redis 7 con Testcontainers. Cada prueba
+debe crear sus propios datos con identificadores unicos y reloj controlado cuando evalúe
+horarios de mercado. Todas usan `@Testcontainers(disabledWithoutDocker = true)`: sin Docker
+se omiten en local, pero el guard de CI falla si alguna se omite. Por ello se necesita Docker
+para validar `clean verify` en CI.
 
 ## Endpoints base
 
@@ -226,8 +231,11 @@ Cualquier error 400, 401, 403, 404 o 500 devuelve el siguiente cuerpo:
 
 Nota de seguimiento (SCRUM-34): `AuthExceptionHandler` traduce `CodigoAuth` a
 `CodigoError` por nombre (`valueOf`). Si se añade un codigo de autenticacion sin
-su equivalente en `CodigoError`, la respuesta sera 500. Queda registrado para un
-ticket posterior; este cambio no modifica el contrato de errores.
+su equivalente en `CodigoError`, la respuesta sera 500. Ademas, el contrato v0.1
+usa `VALIDACION_FALLIDA` y `NO_ENCONTRADO`, mientras la implementacion responde
+`ERROR_VALIDACION` y `RECURSO_NO_ENCONTRADO` (o codigos especificos por modulo).
+Ambos desvios quedan registrados para tickets posteriores; este cambio no modifica
+el contrato de errores.
 
 ## Seguridad
 
@@ -261,9 +269,10 @@ a Mailpit en `http://localhost:8025`.
 
 ## Variables de entorno
 
-Copiar `.env.example` y ajustar los valores locales. En produccion no se deben
-versionar secretos: `DATABASE_URL`, `DATABASE_USER` y `DATABASE_PASSWORD` son
-obligatorios en el perfil `prod` y no tienen valor por defecto. `.env.example`
+Copiar `.env.example` y ajustar los valores locales. En `staging` y `prod` no se
+deben versionar secretos: `DATABASE_URL`, `DATABASE_USER`, `DATABASE_PASSWORD` y
+`AUTH_JWT_SECRET` (minimo 32 caracteres) son obligatorios y no tienen valor por
+defecto; `ACCIONESUD_CORS_ALLOWED_ORIGINS` tambien lo es en `staging`. `.env.example`
 incluye todas las variables referenciadas en `application*.yml`.
 
 ## Base de datos local
