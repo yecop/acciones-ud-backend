@@ -188,12 +188,15 @@ public class StripePasarelaAdapter implements PasarelaPagosPort {
         }
     }
 
-    /** 429 y el 409 de una solicitud concurrente se pueden repetir; un {@code idempotency_error} no. */
+    /**
+     * Un 429 o el 409 de una solicitud concurrente se pueden repetir. Un {@code idempotency_error}
+     * nunca, venga con el status que venga: repetir la misma clave con los mismos datos fallaría igual.
+     */
     static boolean esReintentable(int status, ErrorStripe error) {
-        if (status == 429) {
-            return true;
+        if ("idempotency_error".equals(error.type())) {
+            return false;
         }
-        return status == 409 && !"idempotency_error".equals(error.type());
+        return status == 429 || status == 409;
     }
 
     private Duration esperar(Duration pausa) {

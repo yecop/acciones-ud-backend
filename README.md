@@ -263,7 +263,7 @@ porque el navegador vuelva a la página de éxito.
 Errores de la API de Stripe (según su [guía de errores](https://docs.stripe.com/api/errors)): se
 reintenta hasta 2 veces, con la misma `Idempotency-Key` y espera exponencial (0.5 s, 1 s), solo lo
 que es seguro repetir: error de conexión o tiempo de espera, `429` y un `409` por solicitud
-concurrente. No se reintentan `400`, `401`, `403`, `404`, `idempotency_error` ni `5xx` (Stripe
+concurrente. No se reintentan `400`, `401`, `403`, `404`, `5xx` ni ningún `idempotency_error`, aunque venga con `429` (Stripe
 guarda la respuesta `500` de esa clave). En el log queda `type`, `code`, `param` y el `Request-Id`
 de Stripe; un `401`/`403` se registra como error de configuración de la clave. Si al final Stripe
 no respondió, la recarga responde `502 PASARELA_NO_DISPONIBLE` y el depósito queda `FALLIDO`:

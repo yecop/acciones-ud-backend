@@ -108,6 +108,18 @@ class StripePasarelaAdapterTest {
     }
 
     @Test
+    void un429ConIdempotencyErrorNoSeReintenta() {
+        stripe.stubFor(post(urlEqualTo(RUTA)).willReturn(aResponse().withStatus(429)
+                .withBody(error("idempotency_error", "idempotency_key_in_use"))));
+
+        assertThatThrownBy(this::crear).isInstanceOf(PasarelaNoDisponibleException.class)
+                .hasMessageContaining("429").hasMessageContaining("idempotency_error");
+
+        assertThat(intentos()).isEqualTo(1);
+        assertThat(esperas).isEmpty();
+    }
+
+    @Test
     void unErrorDeConexionSeReintentaYSiPersisteResponde502() {
         stripe.stubFor(post(urlEqualTo(RUTA)).willReturn(aResponse().withFault(Fault.CONNECTION_RESET_BY_PEER)));
 
