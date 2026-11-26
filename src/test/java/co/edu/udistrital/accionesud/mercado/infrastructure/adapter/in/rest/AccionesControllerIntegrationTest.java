@@ -359,7 +359,7 @@ class AccionesControllerIntegrationTest {
                 .andExpect(status().isBadRequest());
         mockMvc.perform(get("/api/v1/acciones").param("tamano", "500").with(inversionista()))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.codigo").value("ERROR_VALIDACION"));
+                .andExpect(jsonPath("$.codigo").value("VALIDACION_FALLIDA"));
         mockMvc.perform(get("/api/v1/acciones/ZZZZ").with(inversionista()))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.codigo").value("ACCION_NO_ENCONTRADA"));

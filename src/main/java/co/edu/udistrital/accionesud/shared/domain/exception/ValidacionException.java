@@ -8,7 +8,7 @@ public class ValidacionException extends DomainException {
     private final List<ErrorCampo> errores;
 
     public ValidacionException(List<ErrorCampo> errores) {
-        super("ERROR_VALIDACION", "Uno o más campos no son válidos");
+        super("VALIDACION_FALLIDA", "Uno o más campos no son válidos");
         this.errores = List.copyOf(errores);
     }
 

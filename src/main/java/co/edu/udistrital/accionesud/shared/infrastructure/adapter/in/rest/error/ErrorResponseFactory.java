@@ -18,7 +18,7 @@ public class ErrorResponseFactory {
     }
 
     public ErrorResponse crear(HttpServletRequest request, HttpStatus status, String codigo,
-                               String mensaje, List<String> detalles, Map<String, Object> datos) {
+                               String mensaje, List<DetalleError> detalles, Map<String, Object> datos) {
         return new ErrorResponse(
                 Instant.now(),
                 status.value(),
