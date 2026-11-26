@@ -7,7 +7,8 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 public record DetalleError(String campo, String problema) {
 
     public static DetalleError campo(String campo, String problema) {
-        return new DetalleError(campo, problema);
+        String campoNormalizado = campo == null ? null : campo.replaceAll("\\[\\d*\\]", "");
+        return new DetalleError(campoNormalizado, problema);
     }
 
     public static DetalleError general(String problema) {
