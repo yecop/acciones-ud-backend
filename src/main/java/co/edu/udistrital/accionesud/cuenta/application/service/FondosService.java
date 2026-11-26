@@ -164,7 +164,13 @@ public class FondosService implements MoverFondosUseCase, ConsultarMovimientosUs
         return movimiento;
     }
 
-    /** Aplica el saldo inicial simulado si la cuenta no tiene movimientos (debe ir en transacción). */
+    /**
+     * Aplica el saldo inicial simulado si la cuenta no tiene movimientos (debe ir en transacción).
+     *
+     * <p>Se registra y se audita, pero a propósito no publica {@code MovimientoFondosRegistrado}:
+     * ese evento crea la notificación {@code MOVIMIENTO_FONDOS} y el usuario recibiría el aviso de
+     * un depósito que él no hizo.</p>
+     */
     private void asegurarSaldoInicial(UUID cuenta) {
         if (saldoInicialSimulado.signum() == 0) {
             return;

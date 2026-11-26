@@ -230,8 +230,10 @@ comisionista) recibe `404 NO_ENCONTRADO` en el saldo.
 - **Historial:** `GET /api/v1/cuenta/movimientos?tipo=&pagina=0&tamano=20` (más recientes
   primero; `tipo` = `DEPOSITO`, `RETIRO`, …). Un `COMISIONISTA` puede consultar el de un cliente
   con relación vigente pasando `inversionistaId`.
-- Cada movimiento aplicado se audita y publica `MovimientoFondosRegistrado`, que crea la
-  notificación `MOVIMIENTO_FONDOS` en la bandeja del titular (SCRUM-51).
+- Cada depósito o retiro aplicado se audita y publica `MovimientoFondosRegistrado`, que crea la
+  notificación `MOVIMIENTO_FONDOS` en la bandeja del titular (SCRUM-51). **Excepción:** el saldo
+  inicial simulado se registra en `movimiento_fondos` y se audita como `SALDO_INICIAL`, pero no
+  publica el evento, para no notificarle al usuario un depósito que él no hizo.
 - El usuario demo de `dev` se crea con su perfil de inversionista y su cuenta de corretaje.
 
 ## Datos de mercado con cache (SCRUM-24)
