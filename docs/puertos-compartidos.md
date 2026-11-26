@@ -87,4 +87,4 @@ name = "broker", havingValue = "alpaca")` y se activa cambiando la propiedad en 
 
 ## Migración
 
-`V12__auditoria_evento.sql`. SCRUM-32 debe usar **V13 en adelante** para sus tablas.
+`V12__auditoria_evento.sql`. SCRUM-32 usa V14 para el esquema y V15 para sus semillas; V13 queda reservada para notificaciones (SCRUM-51).
