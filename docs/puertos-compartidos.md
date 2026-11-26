@@ -44,7 +44,10 @@ public class DepositarService {
   transacción hace rollback, no se entrega. Fuera de transacción se entrega de inmediato.
 - **Consumidores:** `@EventListener` sobre el tipo de evento (`Eventos.OrdenEjecutada`, etc.). Deben
   ser idempotentes con `metadatos().id()`. Si un consumidor falla, se registra en el log y no
-  deshace la operación ya confirmada.
+  deshace la operación ya confirmada. Como el evento llega en el `afterCommit`, un consumidor
+  que escriba en la base de datos debe abrir su propia transacción con `REQUIRES_NEW` (si no, se
+  uniría a la ya confirmada). Así lo hace el módulo de notificaciones (SCRUM-51,
+  `NotificacionesBeansConfig`).
 - **Auditoría:** se escribe en la misma transacción que el cambio (con rollback, desaparece). La
   tabla `auditoria_evento` rechaza `UPDATE`, `DELETE` y `TRUNCATE`. No guardar secretos en `detalle`.
 - **Errores de acceso:** `AccesoDenegadoException` responde 403. `exigirPremium` devuelve

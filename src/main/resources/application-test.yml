@@ -22,6 +22,11 @@ accionesud:
       actualizador-habilitado: false
       cache:
         tipo: memoria
+  notificaciones:
+    canales:
+      email: simulado
+    reintento:
+      habilitado: false
 
 management:
   health:
