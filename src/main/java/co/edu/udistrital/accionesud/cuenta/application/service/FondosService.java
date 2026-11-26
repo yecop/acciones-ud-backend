@@ -207,7 +207,8 @@ public class FondosService implements MoverFondosUseCase, ConsultarMovimientosUs
         }
     }
 
-    private static void validar(BigDecimal monto, String clave) {
+    /** Reglas comunes del monto y la clave de idempotencia (también las usa la recarga con pasarela). */
+    static void validar(BigDecimal monto, String clave) {
         List<ValidacionException.ErrorCampo> errores = new ArrayList<>();
         if (monto == null) {
             errores.add(new ValidacionException.ErrorCampo("monto", "es obligatorio"));

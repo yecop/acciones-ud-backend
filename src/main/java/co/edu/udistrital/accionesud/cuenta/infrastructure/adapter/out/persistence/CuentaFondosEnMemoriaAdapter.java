@@ -3,16 +3,20 @@ package co.edu.udistrital.accionesud.cuenta.infrastructure.adapter.out.persisten
 import co.edu.udistrital.accionesud.cuenta.application.dto.PaginaMovimientos;
 import co.edu.udistrital.accionesud.cuenta.application.port.out.CuentaFondosPort;
 import co.edu.udistrital.accionesud.cuenta.domain.exception.ConflictoIdempotenciaException;
+import co.edu.udistrital.accionesud.cuenta.domain.model.EstadoMovimiento;
 import co.edu.udistrital.accionesud.cuenta.domain.model.MovimientoFondos;
 import co.edu.udistrital.accionesud.cuenta.domain.model.Saldo;
 import co.edu.udistrital.accionesud.cuenta.domain.model.TipoMovimiento;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -28,6 +32,8 @@ public class CuentaFondosEnMemoriaAdapter implements CuentaFondosPort {
     private final Map<UUID, Saldo> saldos = new HashMap<>();
     private final Map<String, MovimientoFondos> porClave = new HashMap<>();
     private final List<MovimientoFondos> movimientos = new ArrayList<>();
+    private final Map<UUID, String> referencias = new HashMap<>();
+    private final Set<String> eventosPago = new HashSet<>();
 
     @Override
     public synchronized Optional<UUID> cuentaDe(UUID inversionistaId) {
@@ -83,6 +89,53 @@ public class CuentaFondosEnMemoriaAdapter implements CuentaFondosPort {
     @Override
     public synchronized Optional<MovimientoFondos> buscarPorClave(String claveIdempotencia) {
         return Optional.ofNullable(porClave.get(claveIdempotencia));
+    }
+
+    @Override
+    public synchronized Optional<MovimientoFondos> buscarPorId(UUID movimientoId) {
+        return movimientos.stream().filter(m -> m.id().equals(movimientoId)).findFirst();
+    }
+
+    @Override
+    public synchronized void asignarReferencia(UUID movimientoId, String referencia) {
+        referencias.put(movimientoId, referencia);
+    }
+
+    @Override
+    public synchronized Optional<String> referenciaDe(UUID movimientoId) {
+        return Optional.ofNullable(referencias.get(movimientoId));
+    }
+
+    @Override
+    public synchronized boolean completarPendiente(UUID movimientoId, Instant completadoEn) {
+        return reemplazarPendiente(movimientoId, EstadoMovimiento.COMPLETADO, completadoEn);
+    }
+
+    @Override
+    public synchronized boolean cerrarPendiente(UUID movimientoId, EstadoMovimiento estado) {
+        if (estado != EstadoMovimiento.FALLIDO && estado != EstadoMovimiento.CANCELADO) {
+            throw new IllegalArgumentException("Un pendiente solo se cierra como FALLIDO o CANCELADO");
+        }
+        return reemplazarPendiente(movimientoId, estado, null);
+    }
+
+    @Override
+    public synchronized boolean registrarEventoPago(String proveedor, String eventoId) {
+        return eventosPago.add(proveedor + ":" + eventoId);
+    }
+
+    private boolean reemplazarPendiente(UUID id, EstadoMovimiento estado, Instant completadoEn) {
+        for (int i = 0; i < movimientos.size(); i++) {
+            MovimientoFondos m = movimientos.get(i);
+            if (m.id().equals(id) && m.estado() == EstadoMovimiento.PENDIENTE) {
+                MovimientoFondos nuevo = new MovimientoFondos(m.id(), m.cuentaId(), m.tipo(), estado, m.monto(),
+                        m.moneda(), m.creadoEn(), completadoEn, m.traceId());
+                movimientos.set(i, nuevo);
+                porClave.replaceAll((clave, valor) -> valor.id().equals(id) ? nuevo : valor);
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override

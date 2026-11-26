@@ -120,6 +120,15 @@ class CuentaControllerIntegrationTest {
     }
 
     @Test
+    void sinPasarelaConfiguradaLaRecargaResponde503() throws Exception {
+        mvc.perform(operar("/recargas", "rec-1", "20").with(inversionista(ana)))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.codigo").value("PASARELA_NO_CONFIGURADA"));
+        mvc.perform(post("/api/v1/pagos/stripe/webhook").contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isServiceUnavailable());
+    }
+
+    @Test
     void laMismaClaveConOtroMontoEsUnConflicto() throws Exception {
         mvc.perform(operar("/depositos", "dup", "10").with(inversionista(ana))).andExpect(status().isCreated());
 

@@ -1,9 +1,12 @@
 package co.edu.udistrital.accionesud.cuenta.infrastructure.adapter.in.rest;
 
 import co.edu.udistrital.accionesud.cuenta.application.dto.ResultadoMovimiento;
+import co.edu.udistrital.accionesud.cuenta.application.dto.ResultadoRecarga;
 import co.edu.udistrital.accionesud.cuenta.application.port.in.ConsultarMovimientosUseCase;
 import co.edu.udistrital.accionesud.cuenta.application.port.in.ConsultarSaldoUseCase;
 import co.edu.udistrital.accionesud.cuenta.application.port.in.MoverFondosUseCase;
+import co.edu.udistrital.accionesud.cuenta.application.port.in.RecargarSaldoUseCase;
+import co.edu.udistrital.accionesud.cuenta.infrastructure.adapter.in.rest.dto.RecargaResponse;
 import co.edu.udistrital.accionesud.cuenta.domain.model.Saldo;
 import co.edu.udistrital.accionesud.cuenta.domain.model.TipoMovimiento;
 import co.edu.udistrital.accionesud.cuenta.infrastructure.adapter.in.rest.dto.MovimientoFondosRequest;
@@ -46,13 +49,16 @@ public class CuentaController {
     private final MoverFondosUseCase moverFondos;
     private final ConsultarMovimientosUseCase movimientos;
     private final AccesoComisionistaPort accesoComisionista;
+    private final RecargarSaldoUseCase recargas;
 
     public CuentaController(ConsultarSaldoUseCase consultarSaldoUseCase, MoverFondosUseCase moverFondos,
-                            ConsultarMovimientosUseCase movimientos, AccesoComisionistaPort accesoComisionista) {
+                            ConsultarMovimientosUseCase movimientos, AccesoComisionistaPort accesoComisionista,
+                            RecargarSaldoUseCase recargas) {
         this.consultarSaldoUseCase = consultarSaldoUseCase;
         this.moverFondos = moverFondos;
         this.movimientos = movimientos;
         this.accesoComisionista = accesoComisionista;
+        this.recargas = recargas;
     }
 
     /**
@@ -87,6 +93,25 @@ public class CuentaController {
             @RequestHeader(name = IDEMPOTENCIA, required = false) String clave,
             @RequestBody MovimientoFondosRequest solicitud) {
         return responder(moverFondos.retirar(usuarioId(autenticacion), solicitud.monto(), clave));
+    }
+
+    /**
+     * POST /api/v1/cuenta/recargas — recarga con pasarela (Stripe Checkout). 201 con el depósito
+     * {@code PENDIENTE} y {@code urlPago}, a donde el frontend redirige. El saldo se acredita cuando
+     * Stripe confirma el pago por webhook. 503 {@code PASARELA_NO_CONFIGURADA} si no está habilitada.
+     */
+    @PostMapping("/recargas")
+    @PreAuthorize("hasRole('INVERSIONISTA')")
+    public ResponseEntity<RecargaResponse> recargar(
+            Authentication autenticacion,
+            @RequestHeader(name = IDEMPOTENCIA, required = false) String clave,
+            @RequestBody MovimientoFondosRequest solicitud) {
+        ResultadoRecarga resultado = recargas.iniciar(usuarioId(autenticacion), solicitud.monto(), clave);
+        RecargaResponse cuerpo = RecargaResponse.desde(resultado);
+        if (resultado.repetido()) {
+            return ResponseEntity.ok().header(REPETIDA, "true").body(cuerpo);
+        }
+        return ResponseEntity.status(HttpStatus.CREATED).body(cuerpo);
     }
 
     /** GET /api/v1/cuenta/movimientos — historial paginado, más recientes primero. */

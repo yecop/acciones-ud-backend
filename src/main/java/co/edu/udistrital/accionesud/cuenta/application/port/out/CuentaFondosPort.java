@@ -1,6 +1,7 @@
 package co.edu.udistrital.accionesud.cuenta.application.port.out;
 
 import co.edu.udistrital.accionesud.cuenta.application.dto.PaginaMovimientos;
+import co.edu.udistrital.accionesud.cuenta.domain.model.EstadoMovimiento;
 import co.edu.udistrital.accionesud.cuenta.domain.model.MovimientoFondos;
 import co.edu.udistrital.accionesud.cuenta.domain.model.Saldo;
 import co.edu.udistrital.accionesud.cuenta.domain.model.TipoMovimiento;
@@ -54,4 +55,33 @@ public interface CuentaFondosPort {
 
     /** Movimientos de la cuenta, más recientes primero; {@code tipo} nulo = todos. */
     PaginaMovimientos listar(UUID cuentaId, TipoMovimiento tipo, int pagina, int tamano);
+
+    // ------------------------------------------------------------ recarga con pasarela
+
+    /** Movimiento por su id, si existe. */
+    Optional<MovimientoFondos> buscarPorId(UUID movimientoId);
+
+    /** Guarda el id del pago en la pasarela ({@code referencia_externa}). */
+    void asignarReferencia(UUID movimientoId, String referencia);
+
+    /** Id del pago en la pasarela, si ya se asignó. */
+    Optional<String> referenciaDe(UUID movimientoId);
+
+    /**
+     * Pasa un movimiento de {@code PENDIENTE} a {@code COMPLETADO}. Es condicional: si ya no estaba
+     * pendiente no cambia nada, así un aviso repetido o concurrente no acredita dos veces.
+     *
+     * @return {@code true} si lo completó esta llamada.
+     */
+    boolean completarPendiente(UUID movimientoId, java.time.Instant completadoEn);
+
+    /** Pasa un movimiento {@code PENDIENTE} a {@code FALLIDO} o {@code CANCELADO}; condicional como el anterior. */
+    boolean cerrarPendiente(UUID movimientoId, EstadoMovimiento estado);
+
+    /**
+     * Marca un aviso de la pasarela como procesado ({@code evento_pago_procesado}).
+     *
+     * @return {@code false} si ya se había procesado (o lo está procesando otra solicitud).
+     */
+    boolean registrarEventoPago(String proveedor, String eventoId);
 }

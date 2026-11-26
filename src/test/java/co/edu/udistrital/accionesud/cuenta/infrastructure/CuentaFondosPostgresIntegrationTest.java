@@ -7,8 +7,17 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import co.edu.udistrital.accionesud.cuenta.application.dto.EventoPago;
+import co.edu.udistrital.accionesud.cuenta.application.port.in.RecargarSaldoUseCase;
 import co.edu.udistrital.accionesud.cuenta.application.port.out.CuentaFondosPort;
 import co.edu.udistrital.accionesud.cuenta.application.service.FondosService;
+import co.edu.udistrital.accionesud.cuenta.application.service.PasarelaFalsa;
+import co.edu.udistrital.accionesud.cuenta.application.service.RecargasService;
+import co.edu.udistrital.accionesud.shared.application.port.out.PublicadorEventosPort;
+import co.edu.udistrital.accionesud.shared.application.port.out.TransaccionPort;
+import co.edu.udistrital.accionesud.shared.application.port.out.TrazabilidadPort;
+import co.edu.udistrital.accionesud.shared.application.service.RegistradorAuditoria;
+import java.time.Clock;
 import co.edu.udistrital.accionesud.cuenta.domain.exception.ConflictoIdempotenciaException;
 import co.edu.udistrital.accionesud.cuenta.domain.exception.FondosInsuficientesException;
 import co.edu.udistrital.accionesud.cuenta.infrastructure.adapter.out.persistence.CuentaFondosJdbcAdapter;
@@ -213,6 +222,62 @@ class CuentaFondosPostgresIntegrationTest extends PostgresSpringSupport {
         assertThat(aplicados).isEqualTo(1);
         assertThat(disponible()).isEqualByComparingTo("100500.00");
         assertThat(movimientos("DEPOSITO", "COMPLETADO")).isEqualTo(2); // saldo inicial + este
+    }
+
+    // ------------------------------------------------------------ recarga con pasarela
+
+    @Autowired TransaccionPort transaccion;
+    @Autowired RegistradorAuditoria auditoria;
+    @Autowired PublicadorEventosPort publicador;
+    @Autowired TrazabilidadPort trazabilidad;
+
+    private RecargasService recargas() {
+        return new RecargasService(fondos, new PasarelaFalsa(), servicio, transaccion, auditoria, publicador,
+                trazabilidad, Clock.systemUTC());
+    }
+
+    private static EventoPago pagado(UUID movimiento, String eventoId, long centavos) {
+        return new EventoPago("STRIPE", eventoId, EventoPago.Resultado.PAGADO, PasarelaFalsa.referenciaDe(movimiento),
+                movimiento, centavos, "usd");
+    }
+
+    @Test
+    void laRecargaQuedaPendienteConSuReferenciaYSeAcreditaAlConfirmarse() {
+        RecargasService recargas = recargas();
+        UUID movimiento = recargas.iniciar(ana, new BigDecimal("250.50"), "rec-1").movimiento().id();
+
+        Map<String, Object> pendiente = jdbc.queryForMap(
+                "SELECT estado, referencia_externa, completado_en FROM movimiento_fondos WHERE id = ?", movimiento);
+        assertThat(pendiente).containsEntry("estado", "PENDIENTE")
+                .containsEntry("referencia_externa", PasarelaFalsa.referenciaDe(movimiento));
+        assertThat(pendiente.get("completado_en")).isNull();
+        assertThat(disponible()).isEqualByComparingTo("100000.00");
+
+        assertThat(recargas.procesar(pagado(movimiento, "evt_" + movimiento, 25050)))
+                .isEqualTo(RecargarSaldoUseCase.Procesamiento.APLICADO);
+
+        assertThat(disponible()).isEqualByComparingTo("100250.50");
+        assertThat(jdbc.queryForObject("SELECT estado FROM movimiento_fondos WHERE id = ?", String.class, movimiento))
+                .isEqualTo("COMPLETADO");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM evento_pago_procesado WHERE evento_id = ?",
+                Integer.class, "evt_" + movimiento)).isEqualTo(1);
+    }
+
+    @Test
+    void avisosDePagoConcurrentesAcreditanUnaSolaVez() throws Exception {
+        RecargasService recargas = recargas();
+        UUID movimiento = recargas.iniciar(ana, new BigDecimal("300.00"), "rec-1").movimiento().id();
+        List<Callable<Boolean>> tareas = new ArrayList<>();
+        for (int i = 0; i < 12; i++) {
+            // La mitad repite el mismo evento y la otra mitad son eventos distintos de la misma sesión.
+            String evento = i % 2 == 0 ? "evt_mismo_" + movimiento : "evt_" + i + "_" + movimiento;
+            tareas.add(() -> recargas.procesar(pagado(movimiento, evento, 30000))
+                    == RecargarSaldoUseCase.Procesamiento.APLICADO);
+        }
+        long aplicados = enParalelo(tareas).stream().filter(Boolean::booleanValue).count();
+
+        assertThat(aplicados).isEqualTo(1);
+        assertThat(disponible()).isEqualByComparingTo("100300.00");
     }
 
     /** Lanza todas las tareas a la vez y espera sus resultados (propaga el primer error). */

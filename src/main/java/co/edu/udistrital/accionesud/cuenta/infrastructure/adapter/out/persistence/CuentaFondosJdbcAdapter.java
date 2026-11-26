@@ -126,6 +126,47 @@ public class CuentaFondosJdbcAdapter implements CuentaFondosPort {
         return PaginaMovimientos.de(contenido, pagina, tamano, total == null ? 0 : total);
     }
 
+    @Override
+    public Optional<MovimientoFondos> buscarPorId(UUID movimientoId) {
+        return jdbc.query("SELECT " + COLUMNAS + " FROM movimiento_fondos WHERE id = ?", MOVIMIENTO, movimientoId)
+                .stream().findFirst();
+    }
+
+    @Override
+    public void asignarReferencia(UUID movimientoId, String referencia) {
+        jdbc.update("UPDATE movimiento_fondos SET referencia_externa = ? WHERE id = ?", referencia, movimientoId);
+    }
+
+    @Override
+    public Optional<String> referenciaDe(UUID movimientoId) {
+        return jdbc.query("SELECT referencia_externa FROM movimiento_fondos WHERE id = ?",
+                        (rs, i) -> rs.getString(1), movimientoId)
+                .stream().filter(Objects::nonNull).findFirst();
+    }
+
+    @Override
+    public boolean completarPendiente(UUID movimientoId, Instant completadoEn) {
+        return jdbc.update("""
+                UPDATE movimiento_fondos SET estado = 'COMPLETADO', completado_en = ?
+                WHERE id = ? AND estado = 'PENDIENTE'""", Timestamp.from(completadoEn), movimientoId) == 1;
+    }
+
+    @Override
+    public boolean cerrarPendiente(UUID movimientoId, EstadoMovimiento estado) {
+        if (estado != EstadoMovimiento.FALLIDO && estado != EstadoMovimiento.CANCELADO) {
+            throw new IllegalArgumentException("Un pendiente solo se cierra como FALLIDO o CANCELADO");
+        }
+        return jdbc.update("UPDATE movimiento_fondos SET estado = ? WHERE id = ? AND estado = 'PENDIENTE'",
+                estado.name(), movimientoId) == 1;
+    }
+
+    @Override
+    public boolean registrarEventoPago(String proveedor, String eventoId) {
+        return jdbc.update("""
+                INSERT INTO evento_pago_procesado (proveedor, evento_id) VALUES (?, ?)
+                ON CONFLICT (proveedor, evento_id) DO NOTHING""", proveedor, eventoId) == 1;
+    }
+
     private static MovimientoFondos movimiento(ResultSet rs, int fila) throws SQLException {
         Timestamp completado = rs.getTimestamp("completado_en");
         return new MovimientoFondos(
