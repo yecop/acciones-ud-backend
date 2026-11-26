@@ -32,17 +32,33 @@ public class AuthDemoDataInitializer implements ApplicationRunner {
         Integer existentes = jdbc.queryForObject(
                 "SELECT count(*) FROM usuario WHERE lower(correo) = lower(?)",
                 Integer.class, correo);
-        if (existentes != null && existentes > 0) {
-            return;
+        if (existentes == null || existentes == 0) {
+            jdbc.update("""
+                    INSERT INTO usuario (
+                        id, rol_id, estado_usuario_id, nombre, correo, contrasena_hash,
+                        celular, mfa_activo)
+                    VALUES (?, 1, 1, 'Inversionista Demo', ?, ?, NULL, TRUE)
+                    """,
+                    UUID.randomUUID(),
+                    correo,
+                    passwordEncoder.encode(properties.getDemo().getClave()));
         }
+        asegurarCuenta(correo);
+    }
+
+    /**
+     * El demo es un INVERSIONISTA: necesita su perfil de inversionista y su cuenta de corretaje
+     * para tener saldo y movimientos (SCRUM-46). Se completa también en bases donde el usuario ya
+     * existía sin ellos.
+     */
+    private void asegurarCuenta(String correo) {
+        UUID id = jdbc.queryForObject("SELECT id FROM usuario WHERE lower(correo) = lower(?)", UUID.class, correo);
         jdbc.update("""
-                INSERT INTO usuario (
-                    id, rol_id, estado_usuario_id, nombre, correo, contrasena_hash,
-                    celular, mfa_activo)
-                VALUES (?, 1, 1, 'Inversionista Demo', ?, ?, NULL, TRUE)
-                """,
-                UUID.randomUUID(),
-                correo,
-                passwordEncoder.encode(properties.getDemo().getClave()));
+                INSERT INTO inversionista (usuario_id, nivel_experiencia_id)
+                SELECT ?, min(id) FROM nivel_experiencia
+                ON CONFLICT (usuario_id) DO NOTHING""", id);
+        jdbc.update("""
+                INSERT INTO cuenta_corretaje (id, inversionista_id) VALUES (?, ?)
+                ON CONFLICT (inversionista_id) DO NOTHING""", UUID.randomUUID(), id);
     }
 }

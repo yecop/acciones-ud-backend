@@ -49,7 +49,8 @@ public class SecurityConfig {
                                 "/api/v1/auth/registro",
                                 "/api/v1/auth/login",
                                 "/api/v1/auth/mfa/**",
-                                "/api/v1/auth/refresh")
+                                "/api/v1/auth/refresh",
+                                "/api/v1/pagos/stripe/webhook")
                         .permitAll()
                         .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated())
