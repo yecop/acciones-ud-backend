@@ -99,10 +99,10 @@ La aplicacion queda en `http://localhost:8080`.
 
 `verify` ejecuta pruebas unitarias, pruebas de integracion y reglas ArchUnit.
 
-Las pruebas con infraestructura real son ocho. Las que necesitan PostgreSQL
+Las pruebas con infraestructura real son nueve. Las que necesitan PostgreSQL
 (`AuthIntegrationTest`, `RegistroIntegrationTest`, `PerfilIntegrationTest`,
-`MigracionesIntegrationTest`, `AuditoriaPostgresIntegrationTest` y
-`NotificacionesPostgresIntegrationTest`) comparten un unico contenedor `postgres:16-alpine` gestionado
+`MigracionesIntegrationTest`, `AuditoriaPostgresIntegrationTest`,
+`NotificacionesPostgresIntegrationTest` y `CuentaFondosPostgresIntegrationTest`) comparten un unico contenedor `postgres:16-alpine` gestionado
 desde `src/test/java/co/edu/udistrital/accionesud/support`; el datasource y Flyway
 (`classpath:db/migration`) se registran de forma centralizada y antes de cada prueba se
 limpian las tablas `auth_*` con `src/test/resources/db/limpiar-datos.sql`.
@@ -134,6 +134,10 @@ para validar `clean verify` en CI.
 | GET | `/api/v1/notificaciones` | bandeja del usuario autenticado (roles INVERSIONISTA y COMISIONISTA) |
 | PATCH | `/api/v1/notificaciones/{id}/leida` | marca una notificación como leída (idempotente) |
 | PATCH | `/api/v1/notificaciones/leidas` | marca todas las no leídas; responde `{ "marcadas": n }` |
+| GET | `/api/v1/cuenta/saldo` | saldo de la cuenta del usuario autenticado |
+| POST | `/api/v1/cuenta/depositos` | depósito simulado (rol INVERSIONISTA, `Idempotency-Key`) |
+| POST | `/api/v1/cuenta/retiros` | retiro simulado (rol INVERSIONISTA, `Idempotency-Key`) |
+| GET | `/api/v1/cuenta/movimientos` | historial de movimientos de fondos |
 
 ### Perfil y preferencias (SCRUM-22)
 
@@ -202,6 +206,33 @@ una notificación por destinatario en `notificacion` (V13):
   más recientes primero. `desde` acepta `2026-11-01` (inicio del día UTC) o un instante ISO 8601
   con zona. `tamano` va de 1 a 100. El usuario sale del token: una notificación ajena o inexistente
   responde `404 NO_ENCONTRADO`.
+
+### Saldo, depósitos y retiros (SCRUM-25 y SCRUM-46)
+
+El saldo vive en `cuenta_corretaje` y cada movimiento en `movimiento_fondos` (V14). El usuario
+sale del token: nadie consulta ni opera una cuenta ajena. Un usuario sin cuenta (p. ej. un
+comisionista) recibe `404 NO_ENCONTRADO` en el saldo.
+
+- **Saldo inicial simulado:** la primera vez que se usa una cuenta sin movimientos se le aplica
+  `ACCIONESUD_SALDO_INICIAL_SIMULADO` (100000.00) como un depósito, que aparece en el historial.
+- **Depósito y retiro:** `POST /api/v1/cuenta/depositos` y `POST /api/v1/cuenta/retiros` con
+  `{"monto": "500.00"}` (número o texto, mayor que 0, hasta 2 decimales, tope 1000000.00) y el
+  encabezado `Idempotency-Key` (obligatorio, hasta 60 caracteres, única por cuenta). Solo el
+  titular (rol `INVERSIONISTA`) opera su cuenta. Responden `201` con
+  `{movimiento:{id,tipo,estado,monto,moneda,creadoEn,completadoEn,traceId},saldo:{disponible,reservado,total}}`.
+- **Retiro sin fondos:** `422 FONDOS_INSUFICIENTES`; el saldo no cambia y el intento queda
+  registrado como `FALLIDO` con su traceId (y en la auditoría como `RECHAZADO`).
+- **Idempotencia:** repetir la clave con el mismo tipo y monto responde `200` con el movimiento
+  original y `Idempotent-Replayed: true`, sin aplicarlo otra vez; con otros datos responde
+  `409 CONFLICTO_IDEMPOTENCIA`.
+- **Concurrencia:** el débito es un único `UPDATE ... WHERE saldo_disponible >= monto`, así que
+  dos retiros simultáneos nunca dejan el saldo negativo ni pierden una actualización.
+- **Historial:** `GET /api/v1/cuenta/movimientos?tipo=&pagina=0&tamano=20` (más recientes
+  primero; `tipo` = `DEPOSITO`, `RETIRO`, …). Un `COMISIONISTA` puede consultar el de un cliente
+  con relación vigente pasando `inversionistaId`.
+- Cada movimiento aplicado se audita y publica `MovimientoFondosRegistrado`, que crea la
+  notificación `MOVIMIENTO_FONDOS` en la bandeja del titular (SCRUM-51).
+- El usuario demo de `dev` se crea con su perfil de inversionista y su cuenta de corretaje.
 
 ## Datos de mercado con cache (SCRUM-24)
 

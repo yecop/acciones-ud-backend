@@ -46,6 +46,7 @@ jobs:
               "RedisCotizacionCacheAdapterIntegrationTest",
               "AuditoriaPostgresIntegrationTest",
               "NotificacionesPostgresIntegrationTest",
+              "CuentaFondosPostgresIntegrationTest",
               "CanalCorreoMailpitIntegrationTest",
           }
           ejecutadas = set()
