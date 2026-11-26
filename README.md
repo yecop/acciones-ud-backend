@@ -139,7 +139,8 @@ usuario en la ruta ni en el cuerpo.
 se conservan. Si se envía `mercados: []` o `sectores: []`, se eliminan todos los
 intereses de esa categoría. Un mercado o sector inexistente responde
 `422 INTERES_NO_VALIDO`; los demás datos inválidos responden
-`400 ERROR_VALIDACION` con el detalle por campo.
+`400 VALIDACION_FALLIDA` con cada problema en `detalles`, como un objeto con
+`campo` y `problema`.
 
 `GET /api/v1/perfil/preferencias` no crea filas en la base de datos. Mientras
 no se hayan guardado preferencias, responde con estos valores: visualización
@@ -154,7 +155,7 @@ Acepta canales `EMAIL`, `SMS` o `WHATSAPP` (al menos uno), y eventos
 (puede ser una lista vacía). No se aceptan elementos nulos. El límite diario,
 cuando se especifica, debe ser mayor que cero. Si la doble autorización está
 activa, `umbralOrdenGrande` es obligatorio y debe ser un monto positivo con hasta
-dos decimales. Una solicitud inválida responde `400 ERROR_VALIDACION` y no altera
+dos decimales. Una solicitud inválida responde `400 VALIDACION_FALLIDA` y no altera
 las preferencias previamente almacenadas.
 
 ## Datos de mercado con cache (SCRUM-24)
@@ -217,7 +218,7 @@ Cualquier error 400, 401, 403, 404 o 500 devuelve el siguiente cuerpo:
 {
   "timestamp": "2026-11-08T18:00:00Z",
   "status": 404,
-  "codigo": "RECURSO_NO_ENCONTRADO",
+  "codigo": "NO_ENCONTRADO",
   "mensaje": "No se encontro el recurso solicitado",
   "traceId": "123e4567-e89b-12d3-a456-426614174000",
   "ruta": "/api/v1/no-existe",
@@ -226,16 +227,12 @@ Cualquier error 400, 401, 403, 404 o 500 devuelve el siguiente cuerpo:
 }
 ```
 
-`detalles` y `datos` siempre estan presentes, aunque esten vacios. Los errores
-500 no exponen stacktrace ni mensajes internos.
-
-Nota de seguimiento (SCRUM-34): `AuthExceptionHandler` traduce `CodigoAuth` a
-`CodigoError` por nombre (`valueOf`). Si se añade un codigo de autenticacion sin
-su equivalente en `CodigoError`, la respuesta sera 500. Ademas, el contrato v0.1
-usa `VALIDACION_FALLIDA` y `NO_ENCONTRADO`, mientras la implementacion responde
-`ERROR_VALIDACION` y `RECURSO_NO_ENCONTRADO` (o codigos especificos por modulo).
-Ambos desvios quedan registrados para tickets posteriores; este cambio no modifica
-el contrato de errores.
+`detalles` y `datos` siempre estan presentes, aunque esten vacios. Cada elemento
+de `detalles` es un objeto con `campo` y `problema`; `campo` se omite para errores
+generales. Los errores 500 no exponen stacktrace ni mensajes internos. Las
+validaciones responden `400 VALIDACION_FALLIDA`; las rutas inexistentes usan
+`404 NO_ENCONTRADO`. Los recursos de dominio pueden devolver códigos más
+específicos, como `PERFIL_NO_ENCONTRADO`.
 
 ## Seguridad
 

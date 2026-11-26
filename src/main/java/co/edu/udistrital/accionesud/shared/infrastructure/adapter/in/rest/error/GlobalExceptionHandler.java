@@ -47,40 +47,35 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> manejarValidacion(MethodArgumentNotValidException ex,
                                                            HttpServletRequest request) {
         List<FieldError> errores = ex.getBindingResult().getFieldErrors();
-        List<String> detalles = errores.stream()
-                .map(error -> error.getField() + ": " + mensaje(error.getDefaultMessage()))
+        List<DetalleError> detalles = errores.stream()
+                .map(error -> DetalleError.campo(error.getField(), mensaje(error.getDefaultMessage())))
                 .toList();
-        List<Map<String, String>> campos = errores.stream()
-                .map(error -> Map.of(
-                        "campo", error.getField(),
-                        "mensaje", mensaje(error.getDefaultMessage())))
-                .toList();
-        return respuesta(HttpStatus.BAD_REQUEST, CodigoError.ERROR_VALIDACION,
-                detalles, Map.of("campos", campos), request);
+        return respuesta(HttpStatus.BAD_REQUEST, CodigoError.VALIDACION_FALLIDA,
+                detalles, Map.of(), request);
     }
 
     @ExceptionHandler(HandlerMethodValidationException.class)
     public ResponseEntity<ErrorResponse> manejarValidacionDeMetodo(HandlerMethodValidationException ex,
                                                                    HttpServletRequest request) {
-        List<String> detalles = ex.getAllValidationResults().stream()
+        List<DetalleError> detalles = ex.getAllValidationResults().stream()
                 .flatMap(resultado -> {
                     String parametro = resultado.getMethodParameter().getParameterName();
                     String nombre = parametro != null ? parametro : "parámetro";
                     return resultado.getResolvableErrors().stream()
-                            .map(error -> nombre + ": " + mensaje(error.getDefaultMessage()));
+                            .map(error -> DetalleError.campo(nombre, mensaje(error.getDefaultMessage())));
                 })
                 .toList();
-        return respuesta(HttpStatus.BAD_REQUEST, CodigoError.ERROR_VALIDACION,
+        return respuesta(HttpStatus.BAD_REQUEST, CodigoError.VALIDACION_FALLIDA,
                 detalles, Map.of(), request);
     }
 
     @ExceptionHandler(ConstraintViolationException.class)
     public ResponseEntity<ErrorResponse> manejarRestriccion(ConstraintViolationException ex,
                                                             HttpServletRequest request) {
-        List<String> detalles = ex.getConstraintViolations().stream()
-                .map(violacion -> violacion.getPropertyPath() + ": " + violacion.getMessage())
+        List<DetalleError> detalles = ex.getConstraintViolations().stream()
+                .map(violacion -> DetalleError.campo(violacion.getPropertyPath().toString(), violacion.getMessage()))
                 .toList();
-        return respuesta(HttpStatus.BAD_REQUEST, CodigoError.ERROR_VALIDACION,
+        return respuesta(HttpStatus.BAD_REQUEST, CodigoError.VALIDACION_FALLIDA,
                 detalles, Map.of(), request);
     }
 
@@ -93,7 +88,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> manejarParametrosInvalidos(Exception ex,
                                                                     HttpServletRequest request) {
         return respuesta(HttpStatus.BAD_REQUEST, CodigoError.SOLICITUD_INVALIDA,
-                List.of(ex.getMessage()), Map.of(), request);
+                List.of(DetalleError.general(ex.getMessage())), Map.of(), request);
     }
 
     @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
@@ -107,7 +102,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> manejarCuerpoIlegible(HttpMessageNotReadableException ex,
                                                                HttpServletRequest request) {
         return respuesta(HttpStatus.BAD_REQUEST, CodigoError.SOLICITUD_INVALIDA,
-                List.of("El cuerpo no es un JSON válido o contiene valores no permitidos"),
+                List.of(DetalleError.general("El cuerpo no es un JSON válido o contiene valores no permitidos")),
                 Map.of(), request);
     }
 
@@ -121,7 +116,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler({NoResourceFoundException.class, NoHandlerFoundException.class})
     public ResponseEntity<ErrorResponse> manejarRecursoNoEncontrado(Exception ex,
                                                                     HttpServletRequest request) {
-        return respuesta(HttpStatus.NOT_FOUND, CodigoError.RECURSO_NO_ENCONTRADO,
+        return respuesta(HttpStatus.NOT_FOUND, CodigoError.NO_ENCONTRADO,
                 List.of(), Map.of(), request);
     }
 
@@ -140,14 +135,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ValidacionException.class)
     public ResponseEntity<ErrorResponse> manejarValidacionDominio(ValidacionException ex,
                                                                   HttpServletRequest request) {
-        List<String> detalles = ex.getErrores().stream()
-                .map(error -> error.campo() + ": " + error.mensaje())
+        List<DetalleError> detalles = ex.getErrores().stream()
+                .map(error -> DetalleError.campo(error.campo(), error.mensaje()))
                 .toList();
-        List<Map<String, String>> campos = ex.getErrores().stream()
-                .map(error -> Map.of("campo", error.campo(), "mensaje", error.mensaje()))
-                .toList();
-        return respuesta(HttpStatus.BAD_REQUEST, CodigoError.ERROR_VALIDACION,
-                detalles, Map.of("campos", campos), request);
+        return respuesta(HttpStatus.BAD_REQUEST, CodigoError.VALIDACION_FALLIDA,
+                detalles, Map.of(), request);
     }
 
     @ExceptionHandler(DomainException.class)
@@ -188,13 +180,13 @@ public class GlobalExceptionHandler {
     }
 
     private ResponseEntity<ErrorResponse> respuesta(HttpStatus status, CodigoError codigo,
-                                                    List<String> detalles, Map<String, Object> datos,
+                                                    List<DetalleError> detalles, Map<String, Object> datos,
                                                     HttpServletRequest request) {
         return respuesta(status, codigo.name(), codigo.getMensaje(), detalles, datos, request);
     }
 
     private ResponseEntity<ErrorResponse> respuesta(HttpStatus status, String codigo, String mensaje,
-                                                    List<String> detalles, Map<String, Object> datos,
+                                                    List<DetalleError> detalles, Map<String, Object> datos,
                                                     HttpServletRequest request) {
         ErrorResponse cuerpo = factory.crear(request, status, codigo, mensaje, detalles, datos);
         return ResponseEntity.status(status).body(cuerpo);

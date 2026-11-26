@@ -59,11 +59,12 @@ class GlobalExceptionHandlerIntegrationTest {
                 .andExpect(status().isBadRequest())
                 .andReturn();
 
-        JsonNode cuerpo = verificarContrato(result, 400, "ERROR_VALIDACION",
+        JsonNode cuerpo = verificarContrato(result, 400, "VALIDACION_FALLIDA",
                 "/api/v1/test/validacion");
         assertThat(cuerpo.get("traceId").asText()).isEqualTo(traceId);
         assertThat(cuerpo.get("detalles").size()).isGreaterThan(0);
-        assertThat(cuerpo.at("/datos/campos").isArray()).isTrue();
+        assertThat(cuerpo.at("/detalles/0/campo").isTextual()).isTrue();
+        assertThat(cuerpo.at("/detalles/0/problema").isTextual()).isTrue();
     }
 
     @Test
@@ -116,7 +117,7 @@ class GlobalExceptionHandlerIntegrationTest {
                 .andExpect(status().isNotFound())
                 .andReturn();
 
-        verificarContrato(result, 404, "RECURSO_NO_ENCONTRADO", "/api/v1/no-existe");
+        verificarContrato(result, 404, "NO_ENCONTRADO", "/api/v1/no-existe");
     }
 
     @Test

@@ -3,6 +3,7 @@ package co.edu.udistrital.accionesud.perfil.infrastructure.adapter.in.rest;
 import co.edu.udistrital.accionesud.shared.infrastructure.adapter.in.rest.error.CodigoError;
 import co.edu.udistrital.accionesud.shared.infrastructure.adapter.in.rest.error.ErrorResponse;
 import co.edu.udistrital.accionesud.shared.infrastructure.adapter.in.rest.error.ErrorResponseFactory;
+import co.edu.udistrital.accionesud.shared.infrastructure.adapter.in.rest.error.DetalleError;
 import com.fasterxml.jackson.databind.exc.InvalidFormatException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.core.Ordered;
@@ -34,9 +35,8 @@ public class PerfilExceptionHandler {
             String campo = rutaCampo(formato);
             String mensaje = "valor no permitido";
             ErrorResponse respuesta = factory.crear(request, HttpStatus.BAD_REQUEST,
-                    CodigoError.ERROR_VALIDACION.name(), CodigoError.ERROR_VALIDACION.getMensaje(),
-                    List.of(campo + ": " + mensaje),
-                    Map.of("campos", List.of(Map.of("campo", campo, "mensaje", mensaje))));
+                    CodigoError.VALIDACION_FALLIDA.name(), CodigoError.VALIDACION_FALLIDA.getMensaje(),
+                    List.of(DetalleError.campo(campo, mensaje)), Map.of());
             return ResponseEntity.badRequest().body(respuesta);
         }
 

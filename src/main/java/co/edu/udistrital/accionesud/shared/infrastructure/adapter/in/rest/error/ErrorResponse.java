@@ -11,6 +11,6 @@ public record ErrorResponse(
         String mensaje,
         String traceId,
         String ruta,
-        List<String> detalles,
+        List<DetalleError> detalles,
         Map<String, Object> datos) {
 }

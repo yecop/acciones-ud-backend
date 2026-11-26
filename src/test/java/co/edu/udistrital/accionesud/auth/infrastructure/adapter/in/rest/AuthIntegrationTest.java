@@ -90,6 +90,17 @@ class AuthIntegrationTest extends PostgresSpringSupport {
     }
 
     @Test
+    void loginConCamposInvalidosDevuelveDetallesPorCampo() throws Exception {
+        mockMvc.perform(post("/api/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"correo\":\"no-es-correo\",\"contrasena\":\"\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.codigo").value("VALIDACION_FALLIDA"))
+                .andExpect(jsonPath("$.detalles[?(@.campo == 'correo')].problema").exists())
+                .andExpect(jsonPath("$.detalles[?(@.campo == 'contrasena')].problema").exists());
+    }
+
+    @Test
     void flujoCompletoLoginMfaRefreshYLogout() throws Exception {
         mockMvc.perform(post("/api/v1/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)

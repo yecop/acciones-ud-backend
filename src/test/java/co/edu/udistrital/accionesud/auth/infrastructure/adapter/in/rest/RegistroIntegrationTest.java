@@ -164,10 +164,10 @@ class RegistroIntegrationTest extends PostgresSpringSupport {
         mockMvc.perform(post("/api/v1/auth/registro")
                         .contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.codigo").value("ERROR_VALIDACION"))
-                .andExpect(jsonPath("$.datos.campos[?(@.campo == 'correo')]").exists())
-                .andExpect(jsonPath("$.datos.campos[?(@.campo == 'contrasena')]").exists())
-                .andExpect(jsonPath("$.datos.campos[?(@.campo == 'mayorDeEdad')]").exists());
+                .andExpect(jsonPath("$.codigo").value("VALIDACION_FALLIDA"))
+                .andExpect(jsonPath("$.detalles[?(@.campo == 'correo')]").exists())
+                .andExpect(jsonPath("$.detalles[?(@.campo == 'contrasena')]").exists())
+                .andExpect(jsonPath("$.detalles[?(@.campo == 'mayorDeEdad')]").exists());
     }
 
     @Test

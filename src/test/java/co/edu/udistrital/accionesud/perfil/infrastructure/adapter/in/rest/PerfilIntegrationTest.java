@@ -193,8 +193,9 @@ class PerfilIntegrationTest extends PostgresSpringSupport {
 
         modificarPerfil(id, "{\"celular\": \"abc\", \"mercados\": [\" \"]}")
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.codigo").value("ERROR_VALIDACION"))
-                .andExpect(jsonPath("$.datos.campos[*].campo", containsInAnyOrder("celular", "mercados[]")));
+                .andExpect(jsonPath("$.codigo").value("VALIDACION_FALLIDA"))
+                .andExpect(jsonPath("$.detalles[*].campo", containsInAnyOrder("celular", "mercados[]")))
+                .andExpect(jsonPath("$.detalles[*].problema").isArray());
     }
 
     @Test
@@ -299,10 +300,10 @@ class PerfilIntegrationTest extends PostgresSpringSupport {
 
         guardarPreferencias(id, cuerpo)
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.codigo").value("ERROR_VALIDACION"))
+                .andExpect(jsonPath("$.codigo").value("VALIDACION_FALLIDA"))
                 .andExpect(jsonPath("$.traceId").exists())
-                .andExpect(jsonPath("$.datos.campos[?(@.campo == 'tipoOrdenPredeterminado')]").exists())
-                .andExpect(jsonPath("$.datos.campos[?(@.campo == 'umbralOrdenGrande')]").exists());
+                .andExpect(jsonPath("$.detalles[?(@.campo == 'tipoOrdenPredeterminado')]").exists())
+                .andExpect(jsonPath("$.detalles[?(@.campo == 'umbralOrdenGrande')]").exists());
 
         assertEquals(0, jdbc.queryForObject(
                 "SELECT count(*) FROM preferencia_perfil WHERE inversionista_id = ?", Integer.class, id));
@@ -317,7 +318,7 @@ class PerfilIntegrationTest extends PostgresSpringSupport {
                 "\"limiteOperacionesDiarias\": 0");
         guardarPreferencias(id, invalida)
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.codigo").value("ERROR_VALIDACION"));
+                .andExpect(jsonPath("$.codigo").value("VALIDACION_FALLIDA"));
 
         esperarPreferenciasGuardadas(obtenerPreferencias(id).andExpect(status().isOk()));
         assertEquals(10, jdbc.queryForObject(
@@ -349,9 +350,9 @@ class PerfilIntegrationTest extends PostgresSpringSupport {
 
         guardarPreferencias(id, cuerpo)
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.codigo").value("ERROR_VALIDACION"))
-                .andExpect(jsonPath("$.datos.campos[?(@.campo == 'limiteOperacionesDiarias')]").exists())
-                .andExpect(jsonPath("$.datos.campos[?(@.campo == 'canales')]").exists());
+                .andExpect(jsonPath("$.codigo").value("VALIDACION_FALLIDA"))
+                .andExpect(jsonPath("$.detalles[?(@.campo == 'limiteOperacionesDiarias')]").exists())
+                .andExpect(jsonPath("$.detalles[?(@.campo == 'canales')]").exists());
     }
 
     @Test
@@ -360,8 +361,8 @@ class PerfilIntegrationTest extends PostgresSpringSupport {
 
         guardarPreferencias(id, PREFERENCIAS.replace("\"BARRAS\"", "\"CUADRICULA\""))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.codigo").value("ERROR_VALIDACION"))
-                .andExpect(jsonPath("$.datos.campos[?(@.campo == 'tipoVisualizacion')]").exists());
+                .andExpect(jsonPath("$.codigo").value("VALIDACION_FALLIDA"))
+                .andExpect(jsonPath("$.detalles[?(@.campo == 'tipoVisualizacion')]").exists());
     }
 
     @Test
@@ -373,14 +374,12 @@ class PerfilIntegrationTest extends PostgresSpringSupport {
 
         guardarPreferencias(id, canalNulo)
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.codigo").value("ERROR_VALIDACION"))
-                .andExpect(jsonPath("$.detalles", org.hamcrest.Matchers.hasItem(
-                        org.hamcrest.Matchers.containsString("canales"))));
+                .andExpect(jsonPath("$.codigo").value("VALIDACION_FALLIDA"))
+                .andExpect(jsonPath("$.detalles[?(@.campo == 'canales')].problema").exists());
         guardarPreferencias(id, eventoNulo)
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.codigo").value("ERROR_VALIDACION"))
-                .andExpect(jsonPath("$.detalles", org.hamcrest.Matchers.hasItem(
-                        org.hamcrest.Matchers.containsString("eventos"))));
+                .andExpect(jsonPath("$.codigo").value("VALIDACION_FALLIDA"))
+                .andExpect(jsonPath("$.detalles[?(@.campo == 'eventos')].problema").exists());
 
         assertEquals(0, jdbc.queryForObject(
                 "SELECT count(*) FROM preferencia_perfil WHERE inversionista_id = ?", Integer.class, id));
