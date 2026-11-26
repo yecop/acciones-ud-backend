@@ -22,6 +22,9 @@ accionesud:
       actualizador-habilitado: false
       cache:
         tipo: memoria
+  notificaciones:
+    reintento:
+      habilitado: false
 
 management:
   health:

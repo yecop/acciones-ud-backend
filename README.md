@@ -40,6 +40,7 @@ co.edu.udistrital.accionesud
 ├── trading
 ├── comisionistas
 ├── cuenta
+├── notificaciones
 ├── auditoria
 └── administracion
 ```
@@ -98,9 +99,10 @@ La aplicacion queda en `http://localhost:8080`.
 
 `verify` ejecuta pruebas unitarias, pruebas de integracion y reglas ArchUnit.
 
-Las pruebas con infraestructura real son seis. Las que necesitan PostgreSQL
+Las pruebas con infraestructura real son siete. Las que necesitan PostgreSQL
 (`AuthIntegrationTest`, `RegistroIntegrationTest`, `PerfilIntegrationTest`,
-`MigracionesIntegrationTest` y `AuditoriaPostgresIntegrationTest`) comparten un unico contenedor `postgres:16-alpine` gestionado
+`MigracionesIntegrationTest`, `AuditoriaPostgresIntegrationTest` y
+`NotificacionesPostgresIntegrationTest`) comparten un unico contenedor `postgres:16-alpine` gestionado
 desde `src/test/java/co/edu/udistrital/accionesud/support`; el datasource y Flyway
 (`classpath:db/migration`) se registran de forma centralizada y antes de cada prueba se
 limpian las tablas `auth_*` con `src/test/resources/db/limpiar-datos.sql`.
@@ -128,6 +130,9 @@ para validar `clean verify` en CI.
 | PATCH | `/api/v1/perfil` | actualiza datos del perfil de forma parcial |
 | GET | `/api/v1/perfil/preferencias` | preferencias operativas (valores por defecto si no se han guardado) |
 | PUT | `/api/v1/perfil/preferencias` | reemplaza las preferencias |
+| GET | `/api/v1/notificaciones` | bandeja del usuario autenticado (roles INVERSIONISTA y COMISIONISTA) |
+| PATCH | `/api/v1/notificaciones/{id}/leida` | marca una notificación como leída (idempotente) |
+| PATCH | `/api/v1/notificaciones/leidas` | marca todas las no leídas; responde `{ "marcadas": n }` |
 
 ### Perfil y preferencias (SCRUM-22)
 
@@ -157,6 +162,39 @@ cuando se especifica, debe ser mayor que cero. Si la doble autorización está
 activa, `umbralOrdenGrande` es obligatorio y debe ser un monto positivo con hasta
 dos decimales. Una solicitud inválida responde `400 VALIDACION_FALLIDA` y no altera
 las preferencias previamente almacenadas.
+
+### Notificaciones (SCRUM-51)
+
+El módulo `notificaciones` consume los eventos de dominio de SCRUM-33 con
+`@EventListener` (llegan después del commit; si hay rollback no se notifica) y guarda
+una notificación por destinatario en `notificacion` (V13):
+
+| Evento | Tipo | Destinatario |
+|---|---|---|
+| `OrdenEjecutada` con `completa = true` (una ejecución parcial no notifica) | `ORDEN_EJECUTADA` | titular de la cuenta |
+| `OrdenEstadoCambiado` a `CANCELADA` | `ORDEN_CANCELADA` | titular de la cuenta |
+| `MovimientoFondosRegistrado` | `MOVIMIENTO_FONDOS` | titular de la cuenta |
+| `AlertaPrecioDisparada` | `ALERTA_PRECIO` | usuario de la alerta |
+| `PropuestaOrdenesCreada` | `PROPUESTA_ORDENES` | inversionista |
+| `AsociacionComisionistaCambiada` | `ASOCIACION_COMISIONISTA` | inversionista y comisionista |
+| `SuscripcionActualizada` | `SUSCRIPCION` | usuario |
+
+- **Idempotencia:** el id de la notificación se deriva de (evento, usuario, tipo), así que
+  reprocesar un evento no la duplica ni la reenvía.
+- **Canales externos:** solo para los tipos del catálogo `evento_notificacion`
+  (`APERTURA_CIERRE_MERCADO`, `RESUMEN_DIARIO_OPERACIONES`, `ORDEN_EJECUTADA`) y solo si el
+  usuario eligió ese evento en sus preferencias (SCRUM-22). Se crea un envío por cada canal
+  elegido (`notificacion_envio`). SMS, EMAIL y WHATSAPP son proveedores **simulados** por ahora.
+  Los demás tipos solo se muestran en la bandeja.
+- **Reintentos:** un fallo deja el envío `PENDIENTE` con espera exponencial
+  (`espera-base-segundos * 2^(intento-1)`); un proceso cada `NOTIFICACIONES_REINTENTO_INTERVALO_MS`
+  lo retoma (`FOR UPDATE SKIP LOCKED`, seguro con varias instancias). Al llegar a `max-intentos`
+  queda `FALLIDO`. Reintentar solo actualiza el envío, nunca crea otra notificación.
+- **Bandeja:** `GET /api/v1/notificaciones?tipo=&desde=&leida=&pagina=0&tamano=20` devuelve
+  `{contenido:[{id,tipo,titulo,mensaje,leida,creadaEn,referenciaId}],pagina,tamano,totalElementos,totalPaginas}`,
+  más recientes primero. `desde` acepta `2026-11-01` (inicio del día UTC) o un instante ISO 8601
+  con zona. `tamano` va de 1 a 100. El usuario sale del token: una notificación ajena o inexistente
+  responde `404 NO_ENCONTRADO`.
 
 ## Datos de mercado con cache (SCRUM-24)
 
