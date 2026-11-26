@@ -127,6 +127,7 @@ para validar `clean verify` en CI.
 | POST | `/api/v1/auth/refresh` | rota el refresh token |
 | POST | `/api/v1/auth/logout` | revoca la sesión autenticada |
 | POST | `/api/v1/admin/altas/reintentar` | reintenta altas pendientes (rol ADMIN) |
+| POST | `/api/v1/ordenes/simulacion` | estima total, comisión y fondos; no crea órdenes ni reserva saldo |
 | GET | `/api/v1/perfil` | datos del inversionista autenticado (rol INVERSIONISTA) |
 | PATCH | `/api/v1/perfil` | actualiza datos del perfil de forma parcial |
 | GET | `/api/v1/perfil/preferencias` | preferencias operativas (valores por defecto si no se han guardado) |
@@ -134,6 +135,26 @@ para validar `clean verify` en CI.
 | GET | `/api/v1/notificaciones` | bandeja del usuario autenticado (roles INVERSIONISTA y COMISIONISTA) |
 | PATCH | `/api/v1/notificaciones/{id}/leida` | marca una notificación como leída (idempotente) |
 | PATCH | `/api/v1/notificaciones/leidas` | marca todas las no leídas; responde `{ "marcadas": n }` |
+
+### Simulación de órdenes (SCRUM-37)
+
+`POST /api/v1/ordenes/simulacion` requiere JWT de `INVERSIONISTA` o `COMISIONISTA`.
+El cuerpo recibe ticker, lado (`COMPRA`/`VENTA`) y cantidad; los comisionistas también
+envían `inversionistaId` y el backend valida la asociación vigente. El precio sale de la
+caché de cotizaciones. El resultado incluye total, porcentaje y desglose de comisión,
+neto estimado, fondos suficientes, estado del mercado y advertencia de antigüedad si aplica.
+La simulación es de solo lectura: consulta el saldo disponible y no crea una orden ni
+modifica/reserva saldo. Los parámetros `comision.porcentaje` y
+`comision.reparto.plataforma` se leen de `parametro_sistema` con caché breve; se acepta
+`comision.porcentaje.<CODIGO_MERCADO>` para sobrescribir el porcentaje global por mercado.
+
+```json
+{
+  "ticker": "AAPL",
+  "lado": "COMPRA",
+  "cantidad": 10
+}
+```
 
 ### Perfil y preferencias (SCRUM-22)
 
