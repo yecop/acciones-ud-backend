@@ -56,6 +56,19 @@ springdoc:
 
 accionesud:
   saldo-inicial-simulado: ${ACCIONESUD_SALDO_INICIAL_SIMULADO:100000.00}
+  # SCRUM-46: recarga de saldo con pasarela. Se activa con PAGOS_PASARELA=stripe y las claves de
+  # Stripe (modo prueba en desarrollo). Sin eso, POST /cuenta/recargas responde 503.
+  pagos:
+    stripe:
+      secret-key: ${STRIPE_SECRET_KEY:}
+      webhook-secret: ${STRIPE_WEBHOOK_SECRET:}
+      base-url: ${STRIPE_BASE_URL:https://api.stripe.com}
+      url-exito: ${PAGOS_URL_EXITO:http://localhost:5173/fondos?recarga=exito}
+      url-cancelacion: ${PAGOS_URL_CANCELACION:http://localhost:5173/fondos?recarga=cancelada}
+      timeout-segundos: ${STRIPE_TIMEOUT_SEGUNDOS:10}
+      tolerancia-firma-segundos: ${STRIPE_TOLERANCIA_FIRMA_SEGUNDOS:300}
+  integraciones:
+    pagos: ${PAGOS_PASARELA:deshabilitado}
   auth:
     jwt:
       secreto: ${AUTH_JWT_SECRET:}
