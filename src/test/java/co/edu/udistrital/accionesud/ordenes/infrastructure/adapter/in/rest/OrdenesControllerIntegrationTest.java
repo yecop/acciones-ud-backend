@@ -1,7 +1,10 @@
 package co.edu.udistrital.accionesud.ordenes.infrastructure.adapter.in.rest;
 
 import co.edu.udistrital.accionesud.cuenta.domain.model.Saldo;
-import co.edu.udistrital.accionesud.cuenta.infrastructure.adapter.out.persistence.InMemorySaldoRepository;
+import co.edu.udistrital.accionesud.cuenta.application.port.out.CuentaFondosPort;
+import co.edu.udistrital.accionesud.cuenta.domain.model.EstadoMovimiento;
+import co.edu.udistrital.accionesud.cuenta.domain.model.MovimientoFondos;
+import co.edu.udistrital.accionesud.cuenta.domain.model.TipoMovimiento;
 import co.edu.udistrital.accionesud.mercado.domain.model.Cotizacion;
 import co.edu.udistrital.accionesud.mercado.domain.port.out.CotizacionCachePort;
 import co.edu.udistrital.accionesud.shared.infrastructure.adapter.out.comisionistas.AccesoComisionistaEnMemoriaAdapter;
@@ -32,10 +35,11 @@ class OrdenesControllerIntegrationTest {
 
     @Autowired MockMvc mvc;
     @Autowired CotizacionCachePort cotizaciones;
-    @Autowired InMemorySaldoRepository saldos;
+    @Autowired CuentaFondosPort fondos;
     @Autowired AccesoComisionistaEnMemoriaAdapter comisionistas;
 
     private UUID inversionista;
+    private UUID cuentaId;
 
     @BeforeEach
     void preparar() {
@@ -44,15 +48,18 @@ class OrdenesControllerIntegrationTest {
             memoria.limpiar();
         }
         Instant ahora = Instant.now();
+        cuentaId = fondos.cuentaDe(inversionista).orElseThrow();
+        fondos.aplicarSaldoInicial(new MovimientoFondos(UUID.randomUUID(), cuentaId, TipoMovimiento.DEPOSITO,
+                EstadoMovimiento.COMPLETADO, new BigDecimal("1000.00"), "USD", ahora, ahora, "trace-test"),
+                "saldo-prueba-" + inversionista);
         cotizaciones.guardar(Cotizacion.de("AAPL", new BigDecimal("175.00"), new BigDecimal("174.99"),
                 new BigDecimal("175.01"), 1000, ahora, "PRUEBA"));
-        saldos.guardar(inversionista.toString(), new Saldo(new BigDecimal("1000.00"), new BigDecimal("25.00")));
         comisionistas.finalizar(inversionista);
     }
 
     @Test
     void simulaCompraValidaComisionYFondosSinModificarSaldo() throws Exception {
-        Saldo antes = saldos.buscarPorUsuario(inversionista.toString()).orElseThrow();
+        Saldo antes = fondos.saldo(cuentaId);
 
         mvc.perform(post(URL).with(user(inversionista.toString()).roles("INVERSIONISTA"))
                         .contentType("application/json")
@@ -73,7 +80,7 @@ class OrdenesControllerIntegrationTest {
                 .andExpect(jsonPath("$.actualizadoEn").exists())
                 .andExpect(jsonPath("$.mercadoAbierto").exists());
 
-        Saldo despues = saldos.buscarPorUsuario(inversionista.toString()).orElseThrow();
+        Saldo despues = fondos.saldo(cuentaId);
         assertThat(despues).isEqualTo(antes);
     }
 
