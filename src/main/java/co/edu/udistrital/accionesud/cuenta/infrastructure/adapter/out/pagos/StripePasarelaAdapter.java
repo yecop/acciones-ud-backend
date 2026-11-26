@@ -28,15 +28,39 @@ import org.slf4j.LoggerFactory;
  * <ul>
  *   <li>La sesión lleva el id del movimiento en {@code client_reference_id} y en {@code metadata};
  *   el webhook lo usa para encontrar el depósito.</li>
- *   <li>{@code Idempotency-Key} = {@code recarga-<movimientoId>}: un reintento no crea otra sesión.</li>
- *   <li>Los errores (sin respuesta, 429, 5xx o un rechazo) se traducen a
- *   {@link PasarelaNoDisponibleException}; el cuerpo del error se registra sin la clave.</li>
+ *   <li>{@code Idempotency-Key} = {@code recarga-<movimientoId>} (menos de 255 caracteres): un
+ *   reintento con los mismos parámetros no crea otra sesión.</li>
+ *   <li><b>Reintentos</b> (guía de errores de Stripe): se reintenta con la misma clave y espera
+ *   exponencial solo lo que es seguro repetir: error de conexión o tiempo de espera, 429 (demasiadas
+ *   solicitudes) y 409 por una solicitud concurrente. No se reintentan los errores de la solicitud
+ *   (400, 401, 403, 404, {@code idempotency_error}) ni un 5xx: Stripe guarda la respuesta 500
+ *   asociada a la clave, así que repetirla devolvería lo mismo.</li>
+ *   <li>Todo error se traduce a {@link PasarelaNoDisponibleException} y se registra con el
+ *   {@code type}, {@code code}, {@code param} y el {@code Request-Id} de Stripe, nunca con la clave.</li>
  * </ul>
  */
 public class StripePasarelaAdapter implements PasarelaPagosPort {
 
     private static final Logger log = LoggerFactory.getLogger(StripePasarelaAdapter.class);
     static final String NOMBRE_PRODUCTO = "Recarga de saldo Acciones UD";
+
+    /** Espera entre reintentos; se reemplaza en pruebas para no dormir de verdad. */
+    @FunctionalInterface
+    public interface Espera {
+        void dormir(Duration duracion) throws InterruptedException;
+    }
+
+    /** Reintentos ante fallas transitorias: cuántos y la espera del primero (luego se duplica). */
+    public record Reintentos(int maximo, Duration esperaInicial) {
+        public static final Reintentos POR_DEFECTO = new Reintentos(2, Duration.ofMillis(500));
+
+        public Reintentos {
+            if (maximo < 0) {
+                throw new IllegalArgumentException("Los reintentos no pueden ser negativos");
+            }
+            Objects.requireNonNull(esperaInicial);
+        }
+    }
 
     private final HttpClient http;
     private final ObjectMapper json;
@@ -45,9 +69,18 @@ public class StripePasarelaAdapter implements PasarelaPagosPort {
     private final String urlExito;
     private final String urlCancelacion;
     private final Duration timeout;
+    private final Reintentos reintentos;
+    private final Espera espera;
 
     public StripePasarelaAdapter(HttpClient http, ObjectMapper json, String baseUrl, String secretKey,
                                  String urlExito, String urlCancelacion, Duration timeout) {
+        this(http, json, baseUrl, secretKey, urlExito, urlCancelacion, timeout, Reintentos.POR_DEFECTO,
+                d -> Thread.sleep(d.toMillis()));
+    }
+
+    public StripePasarelaAdapter(HttpClient http, ObjectMapper json, String baseUrl, String secretKey,
+                                 String urlExito, String urlCancelacion, Duration timeout,
+                                 Reintentos reintentos, Espera espera) {
         this.http = Objects.requireNonNull(http);
         this.json = Objects.requireNonNull(json);
         this.baseUrl = quitarBarraFinal(Objects.requireNonNull(baseUrl));
@@ -55,6 +88,8 @@ public class StripePasarelaAdapter implements PasarelaPagosPort {
         this.urlExito = Objects.requireNonNull(urlExito);
         this.urlCancelacion = Objects.requireNonNull(urlCancelacion);
         this.timeout = Objects.requireNonNull(timeout);
+        this.reintentos = Objects.requireNonNull(reintentos);
+        this.espera = Objects.requireNonNull(espera);
         if (secretKey.isBlank()) {
             throw new IllegalStateException("Falta la clave secreta de Stripe (STRIPE_SECRET_KEY)");
         }
@@ -82,6 +117,7 @@ public class StripePasarelaAdapter implements PasarelaPagosPort {
         campos.put("success_url", conParametro(urlExito, "movimiento", movimiento));
         campos.put("cancel_url", conParametro(urlCancelacion, "movimiento", movimiento));
 
+        // La misma solicitud (misma clave y mismos parámetros) en cada intento.
         HttpRequest solicitud = base("/v1/checkout/sessions")
                 .header("Content-Type", "application/x-www-form-urlencoded")
                 .header("Idempotency-Key", "recarga-" + movimiento)
@@ -92,6 +128,7 @@ public class StripePasarelaAdapter implements PasarelaPagosPort {
 
     @Override
     public Optional<SesionPago> consultarSesion(String referencia) {
+        // GET: Stripe no usa Idempotency-Key en lecturas.
         HttpRequest solicitud = base("/v1/checkout/sessions/" + URLEncoder.encode(referencia, StandardCharsets.UTF_8))
                 .GET().build();
         try {
@@ -110,21 +147,68 @@ public class StripePasarelaAdapter implements PasarelaPagosPort {
     }
 
     private JsonNode enviar(HttpRequest solicitud, String accion) {
-        HttpResponse<String> respuesta;
+        Duration pausa = reintentos.esperaInicial();
+        for (int intento = 0; ; intento++) {
+            boolean quedanIntentos = intento < reintentos.maximo();
+            HttpResponse<String> respuesta;
+            try {
+                respuesta = http.send(solicitud, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+            } catch (IOException e) {
+                // Resultado incierto (Stripe pudo haberla recibido): se repite con la misma clave.
+                if (quedanIntentos) {
+                    log.warn("Sin respuesta de Stripe al {} (intento {}): {}; se reintenta", accion, intento + 1,
+                            e.getMessage());
+                    pausa = esperar(pausa);
+                    continue;
+                }
+                throw new PasarelaNoDisponibleException("Stripe no respondió al " + accion, e);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new PasarelaNoDisponibleException("Se interrumpió la llamada a Stripe", e);
+            }
+
+            int status = respuesta.statusCode();
+            if (status / 100 == 2) {
+                return leer(respuesta.body());
+            }
+            ErrorStripe error = ErrorStripe.de(json, respuesta);
+            if (esReintentable(status, error) && quedanIntentos) {
+                log.warn("Stripe respondió {} al {} (intento {}, {}); se reintenta", status, accion, intento + 1, error);
+                pausa = esperar(pausa);
+                continue;
+            }
+            if (status == 401 || status == 403) {
+                log.error("Stripe rechazó la clave al {} ({}): revisa STRIPE_SECRET_KEY y sus permisos ({})",
+                        accion, status, error);
+            } else {
+                log.warn("Stripe respondió {} al {} ({})", status, accion, error);
+            }
+            throw new PasarelaNoDisponibleException("Stripe rechazó la solicitud (" + status
+                    + (error.type() == null ? "" : ", " + error.type()) + ")");
+        }
+    }
+
+    /** 429 y el 409 de una solicitud concurrente se pueden repetir; un {@code idempotency_error} no. */
+    static boolean esReintentable(int status, ErrorStripe error) {
+        if (status == 429) {
+            return true;
+        }
+        return status == 409 && !"idempotency_error".equals(error.type());
+    }
+
+    private Duration esperar(Duration pausa) {
         try {
-            respuesta = http.send(solicitud, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
-        } catch (IOException e) {
-            throw new PasarelaNoDisponibleException("Stripe no respondió al " + accion, e);
+            espera.dormir(pausa);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new PasarelaNoDisponibleException("Se interrumpió la llamada a Stripe", e);
+            throw new PasarelaNoDisponibleException("Se interrumpió la espera para reintentar en Stripe", e);
         }
-        if (respuesta.statusCode() / 100 != 2) {
-            log.warn("Stripe respondió {} al {}: {}", respuesta.statusCode(), accion, mensajeDeError(respuesta.body()));
-            throw new PasarelaNoDisponibleException("Stripe rechazó la solicitud (" + respuesta.statusCode() + ")");
-        }
+        return pausa.multipliedBy(2);
+    }
+
+    private JsonNode leer(String cuerpo) {
         try {
-            return json.readTree(respuesta.body());
+            return json.readTree(cuerpo);
         } catch (IOException e) {
             throw new PasarelaNoDisponibleException("Stripe devolvió una respuesta ilegible", e);
         }
@@ -142,11 +226,28 @@ public class StripePasarelaAdapter implements PasarelaPagosPort {
         return new SesionPago(id, abierta ? url : null, expira, abierta);
     }
 
-    private String mensajeDeError(String cuerpo) {
-        try {
-            return json.readTree(cuerpo).path("error").path("message").asText("(sin mensaje)");
-        } catch (IOException e) {
-            return "(respuesta ilegible)";
+    /** Campos del objeto de error de Stripe útiles para el log (sin datos de la tarjeta ni la clave). */
+    record ErrorStripe(String type, String code, String param, String message, String requestId) {
+
+        static ErrorStripe de(ObjectMapper json, HttpResponse<String> respuesta) {
+            String requestId = respuesta.headers().firstValue("Request-Id").orElse(null);
+            try {
+                JsonNode error = json.readTree(respuesta.body()).path("error");
+                return new ErrorStripe(texto(error, "type"), texto(error, "code"), texto(error, "param"),
+                        texto(error, "message"), requestId);
+            } catch (IOException | RuntimeException e) {
+                return new ErrorStripe(null, null, null, "(respuesta ilegible)", requestId);
+            }
+        }
+
+        private static String texto(JsonNode nodo, String campo) {
+            return nodo.path(campo).isTextual() ? nodo.path(campo).asText() : null;
+        }
+
+        @Override
+        public String toString() {
+            return "type=" + type + ", code=" + code + ", param=" + param + ", requestId=" + requestId
+                    + ", message=" + message;
         }
     }
 
