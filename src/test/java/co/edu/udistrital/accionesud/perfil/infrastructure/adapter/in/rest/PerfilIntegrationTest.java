@@ -194,7 +194,7 @@ class PerfilIntegrationTest extends PostgresSpringSupport {
         modificarPerfil(id, "{\"celular\": \"abc\", \"mercados\": [\" \"]}")
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.codigo").value("VALIDACION_FALLIDA"))
-                .andExpect(jsonPath("$.detalles[*].campo", containsInAnyOrder("celular", "mercados[]")))
+                .andExpect(jsonPath("$.detalles[*].campo", containsInAnyOrder("celular", "mercados")))
                 .andExpect(jsonPath("$.detalles[*].problema").isArray());
     }
 
