@@ -25,18 +25,19 @@ public class PrecioSimulacionAdapter implements PrecioSimulacionPort {
     }
 
     @Override
-    public PrecioSimulacion obtener(String ticker) {
+    public PrecioSimulacion obtener(String ticker, boolean cotizacionObligatoria) {
         AccionConCotizacion accion = acciones.obtener(ticker);
-        if (accion.cotizacion() == null) {
+        if (accion.cotizacion() == null && cotizacionObligatoria) {
             throw new ProveedorNoDisponibleException("No hay precio en caché para " + accion.accion().ticker(),
                     accion.accion().mercado());
         }
         CotizacionVigente cotizacion = accion.cotizacion();
         EstadoMercadoSnapshot estado = mercados.consultarEstado(accion.accion().mercado());
-        Advertencia advertencia = cotizacion.advertencia();
+        Advertencia advertencia = cotizacion == null ? null : cotizacion.advertencia();
         return new PrecioSimulacion(accion.accion().ticker(), accion.accion().mercado().name(),
-                cotizacion.cotizacion().precio(), cotizacion.cotizacion().actualizadoEn(),
-                cotizacion.desactualizada(), advertencia == null ? null : advertencia.codigo(),
+                cotizacion == null ? null : cotizacion.cotizacion().precio(),
+                cotizacion == null ? null : cotizacion.cotizacion().actualizadoEn(),
+                cotizacion != null && cotizacion.desactualizada(), advertencia == null ? null : advertencia.codigo(),
                 advertencia == null ? null : advertencia.mensaje(), estado.abierto(),
                 estado.proximaApertura().orElse(null));
     }

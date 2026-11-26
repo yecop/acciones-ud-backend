@@ -139,11 +139,14 @@ para validar `clean verify` en CI.
 ### Simulación de órdenes (SCRUM-37)
 
 `POST /api/v1/ordenes/simulacion` requiere JWT de `INVERSIONISTA` o `COMISIONISTA`.
-El cuerpo recibe ticker, lado (`COMPRA`/`VENTA`) y cantidad; los comisionistas también
-envían `inversionistaId` y el backend valida la asociación vigente. El precio sale de la
-caché de cotizaciones. El resultado incluye total, porcentaje y desglose de comisión,
-neto estimado, fondos suficientes, estado del mercado y advertencia de antigüedad si aplica.
-La simulación es de solo lectura: consulta el saldo disponible y no crea una orden ni
+El cuerpo recibe ticker, lado (`COMPRA`/`VENTA`), tipo (`MARKET`, `LIMIT`, `STOP_LOSS` o
+`TAKE_PROFIT`) y cantidad; los comisionistas también envían `inversionistaId` y el backend
+valida la asociación vigente. `MARKET` usa el precio de la caché; `LIMIT` requiere
+`precioLimite`, mientras que `STOP_LOSS` y `TAKE_PROFIT` requieren `precioStop`. La simulación
+de venta compara la cantidad solicitada con la posición disponible (`cantidad -
+cantidad_reservada`). El resultado incluye total, porcentaje y desglose de comisión, neto
+estimado, fondos o acciones suficientes, estado del mercado y advertencia de antigüedad si
+aplica. La simulación es de solo lectura: consulta saldo y posición, y no crea una orden ni
 modifica/reserva saldo. Los parámetros `comision.porcentaje` y
 `comision.reparto.plataforma` se leen de `parametro_sistema` con caché breve; se acepta
 `comision.porcentaje.<CODIGO_MERCADO>` para sobrescribir el porcentaje global por mercado.
@@ -152,6 +155,7 @@ modifica/reserva saldo. Los parámetros `comision.porcentaje` y
 {
   "ticker": "AAPL",
   "lado": "COMPRA",
+  "tipo": "MARKET",
   "cantidad": 10
 }
 ```

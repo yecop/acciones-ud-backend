@@ -5,12 +5,15 @@ import co.edu.udistrital.accionesud.mercado.application.port.in.ConsultarAccione
 import co.edu.udistrital.accionesud.mercado.application.port.in.ConsultarEstadoMercadoUseCase;
 import co.edu.udistrital.accionesud.ordenes.application.port.in.SimularOrdenUseCase;
 import co.edu.udistrital.accionesud.ordenes.application.port.out.ParametrosPort;
+import co.edu.udistrital.accionesud.ordenes.application.port.out.PosicionDisponiblePort;
 import co.edu.udistrital.accionesud.ordenes.application.port.out.PrecioSimulacionPort;
 import co.edu.udistrital.accionesud.ordenes.application.service.SimularOrdenService;
 import co.edu.udistrital.accionesud.ordenes.domain.service.CalculadoraComision;
 import co.edu.udistrital.accionesud.ordenes.infrastructure.adapter.out.mercado.PrecioSimulacionAdapter;
 import co.edu.udistrital.accionesud.ordenes.infrastructure.adapter.out.parametros.ParametrosSistemaJdbcAdapter;
 import co.edu.udistrital.accionesud.ordenes.infrastructure.adapter.out.parametros.ParametrosSistemaMemoriaAdapter;
+import co.edu.udistrital.accionesud.ordenes.infrastructure.adapter.out.persistence.PosicionDisponibleEnMemoriaAdapter;
+import co.edu.udistrital.accionesud.ordenes.infrastructure.adapter.out.persistence.PosicionDisponibleJdbcAdapter;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -41,10 +44,17 @@ public class OrdenesBeansConfig {
     }
 
     @Bean
+    public PosicionDisponiblePort posicionDisponiblePort(ObjectProvider<JdbcTemplate> plantillas) {
+        JdbcTemplate jdbc = plantillas.getIfUnique();
+        return jdbc == null ? new PosicionDisponibleEnMemoriaAdapter() : new PosicionDisponibleJdbcAdapter(jdbc);
+    }
+
+    @Bean
     public SimularOrdenUseCase simularOrdenUseCase(PrecioSimulacionPort precios,
                                                    ParametrosPort parametros,
                                                    ConsultarSaldoUseCase saldos,
-                                                   CalculadoraComision calculadora) {
-        return new SimularOrdenService(precios, parametros, saldos, calculadora);
+                                                   CalculadoraComision calculadora,
+                                                   PosicionDisponiblePort posiciones) {
+        return new SimularOrdenService(precios, parametros, saldos, calculadora, posiciones);
     }
 }

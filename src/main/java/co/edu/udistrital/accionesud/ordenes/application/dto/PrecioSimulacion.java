@@ -18,10 +18,11 @@ public record PrecioSimulacion(String ticker,
     public PrecioSimulacion {
         Objects.requireNonNull(ticker);
         Objects.requireNonNull(mercadoCodigo);
-        Objects.requireNonNull(precio);
-        Objects.requireNonNull(actualizadoEn);
-        if (precio.signum() <= 0) {
+        if (precio != null && precio.signum() <= 0) {
             throw new IllegalArgumentException("La cotización debe ser positiva");
+        }
+        if (precio != null) {
+            Objects.requireNonNull(actualizadoEn, "La fecha de cotización es obligatoria cuando hay precio");
         }
     }
 }

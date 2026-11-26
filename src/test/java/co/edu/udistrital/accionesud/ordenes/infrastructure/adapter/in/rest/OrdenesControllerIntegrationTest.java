@@ -57,10 +57,11 @@ class OrdenesControllerIntegrationTest {
         mvc.perform(post(URL).with(user(inversionista.toString()).roles("INVERSIONISTA"))
                         .contentType("application/json")
                         .content("""
-                                {"ticker":"AAPL","lado":"COMPRA","cantidad":10}
+                                {"ticker":"AAPL","lado":"COMPRA","tipo":"MARKET","cantidad":10}
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.ticker").value("AAPL"))
+                .andExpect(jsonPath("$.tipo").value("MARKET"))
                 .andExpect(jsonPath("$.precioEstimado").value("175.0000"))
                 .andExpect(jsonPath("$.totalTransaccion").value("1750.00"))
                 .andExpect(jsonPath("$.comision.porcentaje").value("2.00"))
@@ -84,14 +85,36 @@ class OrdenesControllerIntegrationTest {
         mvc.perform(post(URL).with(user(inversionista.toString()).roles("INVERSIONISTA"))
                         .contentType("application/json")
                         .content("""
-                                {"ticker":"AAPL","lado":"VENTA","cantidad":10}
+                                {"ticker":"AAPL","lado":"VENTA","tipo":"MARKET","cantidad":10}
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.comision.valor").value("35.00"))
                 .andExpect(jsonPath("$.comision.valorPlataforma").value("21.00"))
                 .andExpect(jsonPath("$.comision.valorComisionista").value("14.00"))
                 .andExpect(jsonPath("$.totalADescontar").value("1715.00"))
-                .andExpect(jsonPath("$.fondosSuficientes").value(true));
+                .andExpect(jsonPath("$.fondosSuficientes").value(false));
+    }
+
+    @Test
+    void limitUsaPrecioLimiteYRechazaSiFalta() throws Exception {
+        mvc.perform(post(URL).with(user(inversionista.toString()).roles("INVERSIONISTA"))
+                        .contentType("application/json")
+                        .content("""
+                                {"ticker":"AAPL","lado":"COMPRA","tipo":"LIMIT","cantidad":2,
+                                 "precioLimite":"100.00"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.tipo").value("LIMIT"))
+                .andExpect(jsonPath("$.precioEstimado").value("100.0000"))
+                .andExpect(jsonPath("$.totalTransaccion").value("200.00"));
+
+        mvc.perform(post(URL).with(user(inversionista.toString()).roles("INVERSIONISTA"))
+                        .contentType("application/json")
+                        .content("""
+                                {"ticker":"AAPL","lado":"COMPRA","tipo":"LIMIT","cantidad":2}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.codigo").value("VALIDACION_FALLIDA"));
     }
 
     @Test
@@ -99,7 +122,26 @@ class OrdenesControllerIntegrationTest {
         mvc.perform(post(URL).with(user(inversionista.toString()).roles("INVERSIONISTA"))
                         .contentType("application/json")
                         .content("""
-                                {"ticker":"AAPL","lado":"COMPRA","cantidad":0}
+                                {"ticker":"AAPL","lado":"COMPRA","tipo":"MARKET","cantidad":0}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.codigo").value("VALIDACION_FALLIDA"));
+    }
+
+    @Test
+    void stopLossRequierePrecioStop() throws Exception {
+        mvc.perform(post(URL).with(user(inversionista.toString()).roles("INVERSIONISTA"))
+                        .contentType("application/json")
+                        .content("""
+                                {"ticker":"AAPL","lado":"VENTA","tipo":"STOP_LOSS","cantidad":1}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.codigo").value("VALIDACION_FALLIDA"));
+
+        mvc.perform(post(URL).with(user(inversionista.toString()).roles("INVERSIONISTA"))
+                        .contentType("application/json")
+                        .content("""
+                                {"ticker":"AAPL","lado":"COMPRA","tipo":"TAKE_PROFIT","cantidad":1}
                                 """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.codigo").value("VALIDACION_FALLIDA"));

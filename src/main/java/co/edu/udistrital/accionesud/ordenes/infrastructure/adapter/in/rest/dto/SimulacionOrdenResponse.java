@@ -9,6 +9,7 @@ import java.time.Instant;
 /** Contrato REST con importes monetarios como texto de dos decimales. */
 public record SimulacionOrdenResponse(String ticker,
                                      String lado,
+                                     String tipo,
                                      int cantidad,
                                      String precioEstimado,
                                      String totalTransaccion,
@@ -26,7 +27,8 @@ public record SimulacionOrdenResponse(String ticker,
         var precio = simulacion.precioMercado();
         AdvertenciaSimulacionResponse advertencia = precio.advertenciaCodigo() == null ? null
                 : new AdvertenciaSimulacionResponse(precio.advertenciaCodigo(), precio.advertenciaMensaje());
-        return new SimulacionOrdenResponse(simulacion.ticker(), simulacion.lado().name(), simulacion.cantidad(),
+        return new SimulacionOrdenResponse(simulacion.ticker(), simulacion.lado().name(), simulacion.tipo().name(),
+                simulacion.cantidad(),
                 simulacion.precioEstimado().setScale(4, RoundingMode.HALF_UP).toPlainString(),
                 MoneyFormatter.format(comisionCalculada.totalTransaccion()),
                 ComisionResponse.desde(comisionCalculada), MoneyFormatter.format(comisionCalculada.neto()),

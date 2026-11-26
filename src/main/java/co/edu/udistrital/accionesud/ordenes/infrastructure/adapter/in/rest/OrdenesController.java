@@ -57,7 +57,8 @@ public class OrdenesController {
             esComisionista = accesoComisionista.comisionistaVigenteDe(inversionistaId).isPresent();
         }
         return SimulacionOrdenResponse.desde(simulador.simular(inversionistaId, solicitud.ticker(),
-                solicitud.lado(), solicitud.cantidad(), esComisionista));
+                solicitud.lado(), solicitud.tipo(), solicitud.cantidad(), solicitud.precioLimite(),
+                solicitud.precioStop(), esComisionista));
     }
 
     private static UUID idAutenticado(Authentication autenticacion) {
