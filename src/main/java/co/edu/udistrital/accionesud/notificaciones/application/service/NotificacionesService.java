@@ -9,9 +9,11 @@ import co.edu.udistrital.accionesud.notificaciones.application.port.out.CanalEnv
 import co.edu.udistrital.accionesud.notificaciones.application.port.out.DestinatarioPort;
 import co.edu.udistrital.accionesud.notificaciones.application.port.out.EnvioRepositoryPort;
 import co.edu.udistrital.accionesud.notificaciones.application.port.out.NotificacionRepositoryPort;
+import co.edu.udistrital.accionesud.notificaciones.domain.exception.EnvioFallidoException;
 import co.edu.udistrital.accionesud.notificaciones.domain.exception.NotificacionNoEncontradaException;
 import co.edu.udistrital.accionesud.notificaciones.domain.model.Aviso;
 import co.edu.udistrital.accionesud.notificaciones.domain.model.CanalNotificacion;
+import co.edu.udistrital.accionesud.notificaciones.domain.model.Contacto;
 import co.edu.udistrital.accionesud.notificaciones.domain.model.EnvioNotificacion;
 import co.edu.udistrital.accionesud.notificaciones.domain.model.Notificacion;
 import co.edu.udistrital.accionesud.notificaciones.domain.model.TraductorEventos;
@@ -162,10 +164,15 @@ public class NotificacionesService
             if (canal == null) {
                 throw new IllegalStateException("No hay proveedor configurado para " + envio.canal());
             }
-            canal.enviar(notificacion);
+            Contacto contacto = destinatarios.contacto(notificacion.usuarioId())
+                    .orElseThrow(() -> EnvioFallidoException.permanente("El usuario ya no existe"));
+            canal.enviar(notificacion, contacto);
             resultado = envio.exitoso(reloj.instant());
         } catch (RuntimeException e) {
-            resultado = envio.fallido(describir(e), reloj.instant(), politica.maxIntentos(), politica.esperaBase());
+            // Un rechazo permanente agota el envío en este intento: reintentar no lo arreglaría.
+            boolean reintentable = !(e instanceof EnvioFallidoException f) || f.reintentable();
+            int maxIntentos = reintentable ? politica.maxIntentos() : envio.intentos() + 1;
+            resultado = envio.fallido(describir(e), reloj.instant(), maxIntentos, politica.esperaBase());
             log.log(System.Logger.Level.WARNING, "Falló el envío {0} de la notificación {1} (intento {2}, {3}): {4}",
                     envio.canal(), notificacion.id(), resultado.intentos(), resultado.estado(), e.getMessage());
         }

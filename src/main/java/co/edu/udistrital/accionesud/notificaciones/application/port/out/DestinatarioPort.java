@@ -1,6 +1,7 @@
 package co.edu.udistrital.accionesud.notificaciones.application.port.out;
 
 import co.edu.udistrital.accionesud.notificaciones.domain.model.CanalNotificacion;
+import co.edu.udistrital.accionesud.notificaciones.domain.model.Contacto;
 
 import java.util.Optional;
 import java.util.Set;
@@ -17,4 +18,7 @@ public interface DestinatarioPort {
      * {@code evento_notificacion}: los canales elegidos, solo si también eligió ese evento.
      */
     Set<CanalNotificacion> canalesPara(UUID usuarioId, String eventoPreferencia);
+
+    /** Correo y celular del usuario; vacío si el usuario no existe. */
+    Optional<Contacto> contacto(UUID usuarioId);
 }

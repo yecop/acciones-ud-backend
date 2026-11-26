@@ -6,6 +6,7 @@ import co.edu.udistrital.accionesud.notificaciones.application.port.out.Destinat
 import co.edu.udistrital.accionesud.notificaciones.application.port.out.EnvioRepositoryPort;
 import co.edu.udistrital.accionesud.notificaciones.application.port.out.NotificacionRepositoryPort;
 import co.edu.udistrital.accionesud.notificaciones.domain.model.CanalNotificacion;
+import co.edu.udistrital.accionesud.notificaciones.domain.model.Contacto;
 import co.edu.udistrital.accionesud.notificaciones.domain.model.EnvioNotificacion;
 import co.edu.udistrital.accionesud.notificaciones.domain.model.Notificacion;
 
@@ -37,6 +38,7 @@ public class NotificacionesEnMemoriaAdapter
     private final Map<UUID, UUID> titulares = new ConcurrentHashMap<>();
     private final Map<UUID, Set<CanalNotificacion>> canales = new ConcurrentHashMap<>();
     private final Map<UUID, Set<String>> eventos = new ConcurrentHashMap<>();
+    private final Map<UUID, Contacto> contactos = new ConcurrentHashMap<>();
 
     // ------------------------------------------------------------------ configuración (pruebas)
 
@@ -49,12 +51,17 @@ public class NotificacionesEnMemoriaAdapter
         eventos.put(usuarioId, Set.copyOf(eventosElegidos));
     }
 
+    public void registrarContacto(UUID usuarioId, Contacto contacto) {
+        contactos.put(usuarioId, contacto);
+    }
+
     public synchronized void limpiar() {
         notificaciones.clear();
         envios.clear();
         titulares.clear();
         canales.clear();
         eventos.clear();
+        contactos.clear();
     }
 
     // ------------------------------------------------------------------ destinatarios
@@ -70,6 +77,11 @@ public class NotificacionesEnMemoriaAdapter
             return Set.of();
         }
         return canales.getOrDefault(usuarioId, Set.of());
+    }
+
+    @Override
+    public Optional<Contacto> contacto(UUID usuarioId) {
+        return Optional.ofNullable(contactos.get(usuarioId));
     }
 
     // ------------------------------------------------------------------ notificaciones

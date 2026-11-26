@@ -99,14 +99,15 @@ La aplicacion queda en `http://localhost:8080`.
 
 `verify` ejecuta pruebas unitarias, pruebas de integracion y reglas ArchUnit.
 
-Las pruebas con infraestructura real son siete. Las que necesitan PostgreSQL
+Las pruebas con infraestructura real son ocho. Las que necesitan PostgreSQL
 (`AuthIntegrationTest`, `RegistroIntegrationTest`, `PerfilIntegrationTest`,
 `MigracionesIntegrationTest`, `AuditoriaPostgresIntegrationTest` y
 `NotificacionesPostgresIntegrationTest`) comparten un unico contenedor `postgres:16-alpine` gestionado
 desde `src/test/java/co/edu/udistrital/accionesud/support`; el datasource y Flyway
 (`classpath:db/migration`) se registran de forma centralizada y antes de cada prueba se
 limpian las tablas `auth_*` con `src/test/resources/db/limpiar-datos.sql`.
-`RedisCotizacionCacheAdapterIntegrationTest` usa Redis 7 con Testcontainers. Cada prueba
+`RedisCotizacionCacheAdapterIntegrationTest` usa Redis 7 y `CanalCorreoMailpitIntegrationTest`
+usa Mailpit (SMTP real) con Testcontainers. Cada prueba
 debe crear sus propios datos con identificadores unicos y reloj controlado cuando evalúe
 horarios de mercado. Todas usan `@Testcontainers(disabledWithoutDocker = true)`: sin Docker
 se omiten en local, pero el guard de CI falla si alguna se omite. Por ello se necesita Docker
@@ -184,12 +185,18 @@ una notificación por destinatario en `notificacion` (V13):
 - **Canales externos:** solo para los tipos del catálogo `evento_notificacion`
   (`APERTURA_CIERRE_MERCADO`, `RESUMEN_DIARIO_OPERACIONES`, `ORDEN_EJECUTADA`) y solo si el
   usuario eligió ese evento en sus preferencias (SCRUM-22). Se crea un envío por cada canal
-  elegido (`notificacion_envio`). SMS, EMAIL y WHATSAPP son proveedores **simulados** por ahora.
-  Los demás tipos solo se muestran en la bandeja.
+  elegido (`notificacion_envio`). Los demás tipos solo se muestran en la bandeja.
+- **Proveedores:** EMAIL va por SMTP con la misma configuración `MAIL_*` del MFA (en dev,
+  Mailpit: `docker compose up -d mailpit` y se ven en http://localhost:8025); remitente
+  `NOTIFICACIONES_CORREO_REMITENTE`. Con `NOTIFICACIONES_CANAL_EMAIL=simulado` (perfil test) solo
+  se registra en el log. SMS y WHATSAPP siguen **simulados** hasta integrar Twilio. El correo y el
+  celular se leen de `usuario`.
 - **Reintentos:** un fallo deja el envío `PENDIENTE` con espera exponencial
   (`espera-base-segundos * 2^(intento-1)`); un proceso cada `NOTIFICACIONES_REINTENTO_INTERVALO_MS`
   lo retoma (`FOR UPDATE SKIP LOCKED`, seguro con varias instancias). Al llegar a `max-intentos`
-  queda `FALLIDO`. Reintentar solo actualiza el envío, nunca crea otra notificación.
+  queda `FALLIDO`. Un rechazo permanente (usuario sin correo, dirección inválida o rechazada por
+  el servidor, p. ej. 550) queda `FALLIDO` de inmediato; caída del servidor o error de
+  autenticación SMTP se reintentan. Reintentar solo actualiza el envío, nunca crea otra notificación.
 - **Bandeja:** `GET /api/v1/notificaciones?tipo=&desde=&leida=&pagina=0&tamano=20` devuelve
   `{contenido:[{id,tipo,titulo,mensaje,leida,creadaEn,referenciaId}],pagina,tamano,totalElementos,totalPaginas}`,
   más recientes primero. `desde` acepta `2026-11-01` (inicio del día UTC) o un instante ISO 8601

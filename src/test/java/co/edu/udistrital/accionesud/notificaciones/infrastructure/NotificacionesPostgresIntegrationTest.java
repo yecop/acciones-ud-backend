@@ -1,6 +1,7 @@
 package co.edu.udistrital.accionesud.notificaciones.infrastructure;
 
 import co.edu.udistrital.accionesud.notificaciones.application.port.in.ReintentarEnviosUseCase;
+import co.edu.udistrital.accionesud.notificaciones.domain.model.Contacto;
 import co.edu.udistrital.accionesud.notificaciones.infrastructure.adapter.out.canal.CanalSimuladoAdapter;
 import co.edu.udistrital.accionesud.notificaciones.infrastructure.adapter.out.persistencia.NotificacionJdbcAdapter;
 import co.edu.udistrital.accionesud.notificaciones.infrastructure.config.NotificacionesBeansConfig.AlmacenNotificaciones;
@@ -49,6 +50,7 @@ class NotificacionesPostgresIntegrationTest extends PostgresSpringSupport {
     static void propiedades(DynamicPropertyRegistry registry) {
         registry.add("accionesud.auth.reintento.habilitado", () -> "false");
         registry.add("accionesud.notificaciones.reintento.habilitado", () -> "false");
+        registry.add("accionesud.notificaciones.canales.email", () -> "simulado");
         registry.add("accionesud.mercados.cotizaciones.actualizador-habilitado", () -> "false");
         registry.add("accionesud.mercados.cotizaciones.cache.tipo", () -> "memoria");
         registry.add("management.health.redis.enabled", () -> "false");
@@ -104,6 +106,9 @@ class NotificacionesPostgresIntegrationTest extends PostgresSpringSupport {
     @Test
     void usaLosAdaptadoresJdbc() {
         assertThat(almacen.notificaciones()).isInstanceOf(NotificacionJdbcAdapter.class);
+        assertThat(almacen.destinatarios().contacto(usuario))
+                .contains(new Contacto("ana-" + usuario + "@example.test", null));
+        assertThat(almacen.destinatarios().titularDeCuenta(cuenta)).contains(usuario);
     }
 
     @Test

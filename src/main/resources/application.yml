@@ -87,6 +87,11 @@ accionesud:
   # SCRUM-51: notificaciones. Un envío por SMS/correo/WhatsApp que falla se reintenta con espera
   # exponencial (espera-base * 2^(intento-1)) hasta max-intentos; luego queda FALLIDO.
   notificaciones:
+    canales:
+      # smtp (por defecto: spring.mail.*, Mailpit en dev) | simulado. SMS y WhatsApp: simulados (Twilio pendiente).
+      email: ${NOTIFICACIONES_CANAL_EMAIL:smtp}
+    correo:
+      remitente: ${NOTIFICACIONES_CORREO_REMITENTE:${AUTH_CORREO_REMITENTE:no-reply@accionesud.local}}
     reintento:
       habilitado: ${NOTIFICACIONES_REINTENTO_HABILITADO:true}
       intervalo-ms: ${NOTIFICACIONES_REINTENTO_INTERVALO_MS:30000}

@@ -46,6 +46,7 @@ jobs:
               "RedisCotizacionCacheAdapterIntegrationTest",
               "AuditoriaPostgresIntegrationTest",
               "NotificacionesPostgresIntegrationTest",
+              "CanalCorreoMailpitIntegrationTest",
           }
           ejecutadas = set()
           for ruta in glob.glob("target/surefire-reports/TEST-*.xml"):

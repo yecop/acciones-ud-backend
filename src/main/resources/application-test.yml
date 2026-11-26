@@ -23,6 +23,8 @@ accionesud:
       cache:
         tipo: memoria
   notificaciones:
+    canales:
+      email: simulado
     reintento:
       habilitado: false
 

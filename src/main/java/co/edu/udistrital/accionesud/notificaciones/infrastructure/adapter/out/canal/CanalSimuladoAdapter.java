@@ -3,6 +3,7 @@ package co.edu.udistrital.accionesud.notificaciones.infrastructure.adapter.out.c
 import co.edu.udistrital.accionesud.notificaciones.application.port.out.CanalEnvioPort;
 import co.edu.udistrital.accionesud.notificaciones.domain.exception.EnvioFallidoException;
 import co.edu.udistrital.accionesud.notificaciones.domain.model.CanalNotificacion;
+import co.edu.udistrital.accionesud.notificaciones.domain.model.Contacto;
 import co.edu.udistrital.accionesud.notificaciones.domain.model.Notificacion;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -15,7 +16,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Proveedor simulado de un canal externo (SCRUM-51): registra en el log lo que enviaría.
- * Se usa hasta integrar los proveedores reales (Twilio, SMTP, WhatsApp Business).
+ * Es el canal por defecto en pruebas y para SMS/WhatsApp hasta integrar Twilio; el correo real
+ * usa {@code CanalCorreoSmtpAdapter}.
  *
  * <p>Para probar reintentos se le puede pedir que falle los próximos {@code n} envíos.</p>
  */
@@ -38,10 +40,10 @@ public class CanalSimuladoAdapter implements CanalEnvioPort {
     }
 
     @Override
-    public void enviar(Notificacion notificacion) {
+    public void enviar(Notificacion notificacion, Contacto contacto) {
         intentos.incrementAndGet();
         if (fallosPendientes.getAndUpdate(n -> Math.max(0, n - 1)) > 0) {
-            throw new EnvioFallidoException("Proveedor " + canal + " no disponible (simulado)");
+            throw EnvioFallidoException.temporal("Proveedor " + canal + " no disponible (simulado)");
         }
         enviadas.add(notificacion.id());
         log.info("[{} simulado] usuario={} tipo={} titulo=\"{}\"", canal, notificacion.usuarioId(),

@@ -2,6 +2,7 @@ package co.edu.udistrital.accionesud.notificaciones.infrastructure.adapter.out.p
 
 import co.edu.udistrital.accionesud.notificaciones.application.port.out.DestinatarioPort;
 import co.edu.udistrital.accionesud.notificaciones.domain.model.CanalNotificacion;
+import co.edu.udistrital.accionesud.notificaciones.domain.model.Contacto;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.util.EnumSet;
@@ -12,7 +13,8 @@ import java.util.UUID;
 
 /**
  * Lee el titular de la cuenta ({@code cuenta_corretaje}) y las preferencias de SCRUM-22
- * ({@code preferencia_canal} y {@code preferencia_evento}) sin depender del módulo perfil.
+ * ({@code preferencia_canal} y {@code preferencia_evento}) y el contacto ({@code usuario}) sin
+ * depender de los módulos perfil ni auth.
  */
 public class DestinatarioJdbcAdapter implements DestinatarioPort {
 
@@ -39,5 +41,12 @@ public class DestinatarioJdbcAdapter implements DestinatarioPort {
                     canales.add(CanalNotificacion.desdeId(rs.getInt(1)));
                 }, usuarioId, eventoPreferencia);
         return canales;
+    }
+
+    @Override
+    public Optional<Contacto> contacto(UUID usuarioId) {
+        return jdbc.query("SELECT correo, celular FROM usuario WHERE id = ?",
+                (rs, i) -> new Contacto(rs.getString("correo"), rs.getString("celular")), usuarioId)
+                .stream().findFirst();
     }
 }

@@ -3,7 +3,10 @@ package co.edu.udistrital.accionesud.notificaciones.application.service;
 import co.edu.udistrital.accionesud.notificaciones.application.dto.FiltroNotificaciones;
 import co.edu.udistrital.accionesud.notificaciones.application.dto.PaginaNotificaciones;
 import co.edu.udistrital.accionesud.notificaciones.domain.exception.NotificacionNoEncontradaException;
+import co.edu.udistrital.accionesud.notificaciones.application.port.out.CanalEnvioPort;
+import co.edu.udistrital.accionesud.notificaciones.domain.exception.EnvioFallidoException;
 import co.edu.udistrital.accionesud.notificaciones.domain.model.CanalNotificacion;
+import co.edu.udistrital.accionesud.notificaciones.domain.model.Contacto;
 import co.edu.udistrital.accionesud.notificaciones.domain.model.EnvioNotificacion;
 import co.edu.udistrital.accionesud.notificaciones.domain.model.Notificacion;
 import co.edu.udistrital.accionesud.notificaciones.domain.model.TipoNotificacion;
@@ -52,6 +55,7 @@ class NotificacionesServiceTest {
         memoria.registrarCuenta(cuenta, usuario);
         memoria.registrarPreferencias(usuario, Set.of(CanalNotificacion.EMAIL, CanalNotificacion.SMS),
                 Set.of("ORDEN_EJECUTADA"));
+        memoria.registrarContacto(usuario, new Contacto("ana@example.test", "+573001112233"));
     }
 
     private Eventos.OrdenEjecutada ejecutada() {
@@ -133,6 +137,47 @@ class NotificacionesServiceTest {
         reloj.avanzar(Duration.ofHours(1));
         assertThat(servicio.reintentarPendientes()).isZero();
         assertThat(bandeja(usuario).contenido()).extracting(Notificacion::id).containsExactly(n.id());
+    }
+
+    @Test
+    void unRechazoPermanenteQuedaFallidoSinReintentar() {
+        CanalEnvioPort rechaza = new CanalEnvioPort() {
+            @Override
+            public CanalNotificacion canal() {
+                return CanalNotificacion.EMAIL;
+            }
+
+            @Override
+            public void enviar(Notificacion notificacion, Contacto contacto) {
+                throw EnvioFallidoException.permanente("Dirección rechazada");
+            }
+        };
+        servicio = new NotificacionesService(memoria, memoria, memoria, List.of(rechaza, sms),
+                new TransaccionLocalAdapter(),
+                new NotificacionesService.PoliticaReintento(3, ESPERA, Duration.ofSeconds(120), 50), reloj);
+
+        servicio.procesar(ejecutada());
+        Notificacion n = bandeja(usuario).contenido().get(0);
+
+        EnvioNotificacion envio = envio(n, CanalNotificacion.EMAIL);
+        assertThat(envio.estado()).isEqualTo(EnvioNotificacion.Estado.FALLIDO);
+        assertThat(envio.intentos()).isEqualTo(1);
+        assertThat(envio.ultimoError()).isEqualTo("Dirección rechazada");
+        reloj.avanzar(Duration.ofHours(1));
+        assertThat(servicio.reintentarPendientes()).isZero();
+        assertThat(sms.enviadas()).containsExactly(n.id());
+    }
+
+    @Test
+    void sinDatosDeContactoElEnvioQuedaFallido() {
+        memoria.limpiar();
+        memoria.registrarCuenta(cuenta, usuario);
+        memoria.registrarPreferencias(usuario, Set.of(CanalNotificacion.EMAIL), Set.of("ORDEN_EJECUTADA"));
+        servicio.procesar(ejecutada());
+
+        Notificacion n = bandeja(usuario).contenido().get(0);
+        assertThat(envio(n, CanalNotificacion.EMAIL).estado()).isEqualTo(EnvioNotificacion.Estado.FALLIDO);
+        assertThat(email.intentos()).isZero();
     }
 
     @Test
