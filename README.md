@@ -127,6 +127,7 @@ para validar `clean verify` en CI.
 | POST | `/api/v1/auth/refresh` | rota el refresh token |
 | POST | `/api/v1/auth/logout` | revoca la sesión autenticada |
 | POST | `/api/v1/admin/altas/reintentar` | reintenta altas pendientes (rol ADMIN) |
+| POST | `/api/v1/ordenes/simulacion` | estima total, comisión y fondos; no crea órdenes ni reserva saldo |
 | GET | `/api/v1/perfil` | datos del inversionista autenticado (rol INVERSIONISTA) |
 | PATCH | `/api/v1/perfil` | actualiza datos del perfil de forma parcial |
 | GET | `/api/v1/perfil/preferencias` | preferencias operativas (valores por defecto si no se han guardado) |
@@ -140,6 +141,30 @@ para validar `clean verify` en CI.
 | GET | `/api/v1/cuenta/movimientos` | historial de movimientos de fondos |
 | POST | `/api/v1/cuenta/recargas` | recarga con Stripe Checkout (rol INVERSIONISTA, `Idempotency-Key`) |
 | POST | `/api/v1/pagos/stripe/webhook` | avisos firmados de Stripe (público, verifica `Stripe-Signature`) |
+
+### Simulación de órdenes (SCRUM-37)
+
+`POST /api/v1/ordenes/simulacion` requiere JWT de `INVERSIONISTA` o `COMISIONISTA`.
+El cuerpo recibe ticker, lado (`COMPRA`/`VENTA`), tipo (`MARKET`, `LIMIT`, `STOP_LOSS` o
+`TAKE_PROFIT`) y cantidad; los comisionistas también envían `inversionistaId` y el backend
+valida la asociación vigente. `MARKET` usa el precio de la caché; `LIMIT` requiere
+`precioLimite`, mientras que `STOP_LOSS` y `TAKE_PROFIT` requieren `precioStop`. La simulación
+de venta compara la cantidad solicitada con la posición disponible (`cantidad -
+cantidad_reservada`). El resultado incluye total, porcentaje y desglose de comisión, neto
+estimado, fondos o acciones suficientes, estado del mercado y advertencia de antigüedad si
+aplica. La simulación es de solo lectura: consulta saldo y posición, y no crea una orden ni
+modifica/reserva saldo. Los parámetros `comision.porcentaje` y
+`comision.reparto.plataforma` se leen de `parametro_sistema` con caché breve; se acepta
+`comision.porcentaje.<CODIGO_MERCADO>` para sobrescribir el porcentaje global por mercado.
+
+```json
+{
+  "ticker": "AAPL",
+  "lado": "COMPRA",
+  "tipo": "MARKET",
+  "cantidad": 10
+}
+```
 
 ### Perfil y preferencias (SCRUM-22)
 
