@@ -285,8 +285,14 @@ porque el navegador vuelva a la página de éxito.
      condicional: avisos repetidos o simultáneos no acreditan dos veces. Si la sesión o el monto
      cobrado no coinciden con el depósito, no se acredita y queda en la auditoría como `RECHAZADO`.
 
-Si Stripe no responde, la recarga responde `502 PASARELA_NO_DISPONIBLE` y el depósito queda
-`FALLIDO`. Sin `PAGOS_PASARELA=stripe` (perfil test, CI) responde `503 PASARELA_NO_CONFIGURADA`.
+Errores de la API de Stripe (según su [guía de errores](https://docs.stripe.com/api/errors)): se
+reintenta hasta 2 veces, con la misma `Idempotency-Key` y espera exponencial (0.5 s, 1 s), solo lo
+que es seguro repetir: error de conexión o tiempo de espera, `429` y un `409` por solicitud
+concurrente. No se reintentan `400`, `401`, `403`, `404`, `5xx` ni ningún `idempotency_error`, aunque venga con `429` (Stripe
+guarda la respuesta `500` de esa clave). En el log queda `type`, `code`, `param` y el `Request-Id`
+de Stripe; un `401`/`403` se registra como error de configuración de la clave. Si al final Stripe
+no respondió, la recarga responde `502 PASARELA_NO_DISPONIBLE` y el depósito queda `FALLIDO`:
+como el usuario nunca recibió la página de pago, no hay cobro que conciliar. Sin `PAGOS_PASARELA=stripe` (perfil test, CI) responde `503 PASARELA_NO_CONFIGURADA`.
 
 **Configurarla en local:** en el `.env` (no se versiona) poner `PAGOS_PASARELA=stripe`,
 `STRIPE_SECRET_KEY` (clave **de prueba** `sk_test_…`, o mejor una restringida `rk_test_…` con
